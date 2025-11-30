@@ -1,0 +1,276 @@
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { AudioEngine, PadParams as EnginePadParams } from '../lib/AudioEngine';
+
+export interface PadParams {
+    attack: number;
+    release: number;
+    timeStretch: number;
+    keyShift: number;
+    isReverse: boolean;
+}
+
+export interface Pad {
+    id: string;
+    label: string;
+    color: string;
+    cuePoint: number | null;
+    key: string;
+    params: PadParams;
+}
+
+const DEFAULT_PARAMS: PadParams = {
+    attack: 0,
+    release: 30,
+    timeStretch: 100,
+    keyShift: 0,
+    isReverse: false,
+};
+
+// Initial Pad Configuration
+const INITIAL_PADS: Pad[] = [
+    // Row 1
+    { id: 'pad-1', label: 'Q', key: 'KeyQ', color: 'bg-red-700', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-2', label: 'W', key: 'KeyW', color: 'bg-yellow-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-3', label: 'E', key: 'KeyE', color: 'bg-fuchsia-700', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-4', label: 'R', key: 'KeyR', color: 'bg-orange-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-5', label: 'T', key: 'KeyT', color: 'bg-green-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    // Row 2
+    { id: 'pad-6', label: 'A', key: 'KeyA', color: 'bg-yellow-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-7', label: 'S', key: 'KeyS', color: 'bg-red-800', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-8', label: 'D', key: 'KeyD', color: 'bg-green-700', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-9', label: 'F', key: 'KeyF', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-10', label: 'G', key: 'KeyG', color: 'bg-red-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    // Row 3
+    { id: 'pad-11', label: 'Z', key: 'KeyZ', color: 'bg-green-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-12', label: 'X', key: 'KeyX', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-13', label: 'C', key: 'KeyC', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-14', label: 'V', key: 'KeyV', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-15', label: 'B', key: 'KeyB', color: 'bg-red-900', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    // Row 4
+    { id: 'pad-16', label: 'Y', key: 'KeyY', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-17', label: 'U', key: 'KeyU', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-18', label: 'I', key: 'KeyI', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-19', label: 'O', key: 'KeyO', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-20', label: 'P', key: 'KeyP', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+];
+
+interface AudioState {
+    // Engine State
+    currentTime: number;
+    duration: number;
+    isPlaying: boolean;
+    audioEngine: AudioEngine;
+
+    // Pads
+    pads: Pad[];
+    selectedPadId: string | null;
+}
+
+interface AudioContextType extends AudioState {
+    // Transport
+    play: () => void;
+    pause: () => void;
+    seek: (time: number) => void;
+
+    // Pad Actions
+    triggerPad: (id: string) => void;
+    setPadCuePoint: (id: string, time: number) => void;
+    clearPad: (id: string) => void;
+    selectPad: (id: string) => void;
+
+    // Param Updates (for selected pad)
+    updateSelectedPadParams: (params: Partial<PadParams>) => void;
+}
+
+const AudioContext = createContext<AudioContextType | undefined>(undefined);
+
+export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const [pads, setPads] = useState<Pad[]>(INITIAL_PADS);
+    const [selectedPadId, setSelectedPadId] = useState<string | null>('pad-1');
+
+    // Engine State
+    const [audioEngine] = useState(() => new AudioEngine());
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    // Load audio file on mount
+    useEffect(() => {
+        const engine = audioEngine;
+
+        engine.onStop = () => {
+            setIsPlaying(false);
+        };
+
+        // Removed onPadStop - pause() handles everything now
+
+        // Load the audio file (use absolute path for Vite)
+        console.log('Loading audio file: /tarp.wav');
+        setIsLoading(true);
+        setLoadError(null);
+
+        engine.load('/tarp.wav')
+            .then(() => {
+                const dur = engine.getDuration();
+                console.log('Audio loaded successfully, duration:', dur);
+                setDuration(dur);
+                setIsLoading(false);
+            })
+            .catch((error) => {
+                console.error('Failed to load audio file:', error);
+                setLoadError(`Failed to load audio: ${error.message || 'Unknown error'}`);
+                setIsLoading(false);
+            });
+
+        // Cleanup on unmount
+        return () => {
+            // AudioEngine cleanup handled internally
+        };
+    }, [audioEngine]);
+
+    // Update current time continuously (for both main transport and pad playback)
+    useEffect(() => {
+        let animationFrame: number | null = null;
+        let isActive = true;
+
+        const update = () => {
+            if (!isActive) {
+                if (animationFrame !== null) {
+                    cancelAnimationFrame(animationFrame);
+                }
+                return;
+            }
+            
+            try {
+                // Update current time - returns position based on what's playing
+                const newTime = audioEngine.getCurrentTime();
+                setCurrentTime(newTime);
+                
+                // Update playing state - check engine state directly
+                const playing = audioEngine.isPlaying;
+                setIsPlaying(playing);
+                
+                // Always continue the loop to ensure smooth updates
+                // Even when not playing, we still need to update for seek operations
+                animationFrame = requestAnimationFrame(update);
+            } catch (error) {
+                console.error('Error in time update loop:', error);
+                // Continue loop even on error to prevent it from stopping
+                animationFrame = requestAnimationFrame(update);
+            }
+        };
+
+        // Start the update loop immediately
+        update();
+
+        return () => {
+            isActive = false;
+            if (animationFrame !== null) {
+                cancelAnimationFrame(animationFrame);
+            }
+        };
+    }, [audioEngine]);
+
+    // NOTE: No longer applying selected pad params to engine globally
+    // Each pad now has its own player instance with independent parameters
+
+    const play = async () => {
+        await audioEngine.play();
+        // State will be updated by the time loop, but set immediately for responsiveness
+        setIsPlaying(audioEngine.isPlaying);
+    };
+
+    const pause = () => {
+        // Pause stops everything and resets to global mode
+        audioEngine.pause();
+        // State will be updated by the time loop, but set immediately for responsiveness
+        setIsPlaying(audioEngine.isPlaying);
+        setCurrentTime(audioEngine.getCurrentTime());
+    };
+
+    const seek = (time: number) => {
+        audioEngine.seek(time);
+        setCurrentTime(time);
+    };
+
+    const triggerPad = async (id: string) => {
+        const pad = pads.find(p => p.id === id);
+        if (pad && pad.cuePoint !== null) {
+            setSelectedPadId(id); // Select on trigger
+
+            // Convert pad params to engine params
+            const engineParams: EnginePadParams = {
+                speed: pad.params.timeStretch / 100,
+                pitch: pad.params.keyShift,
+                reverse: pad.params.isReverse
+            };
+
+            // Play this specific pad with its parameters
+            await audioEngine.playPad(id, pad.cuePoint, engineParams);
+            
+            // Immediately update state to ensure waveform reflects pad playback
+            setIsPlaying(audioEngine.isPlaying);
+            setCurrentTime(audioEngine.getCurrentTime());
+        }
+    };
+
+    const setPadCuePoint = (id: string, time: number) => {
+        setPads(prev => prev.map(p =>
+            p.id === id ? { ...p, cuePoint: time } : p
+        ));
+        setSelectedPadId(id); // Select when setting
+    };
+
+    const clearPad = (id: string) => {
+        setPads(prev => prev.map(p =>
+            p.id === id ? { ...p, cuePoint: null } : p
+        ));
+    };
+
+    const selectPad = (id: string) => {
+        setSelectedPadId(id);
+    };
+
+    const updateSelectedPadParams = (updates: Partial<PadParams>) => {
+        if (!selectedPadId) return;
+        setPads(prev => prev.map(p =>
+            p.id === selectedPadId
+                ? { ...p, params: { ...p.params, ...updates } }
+                : p
+        ));
+    };
+
+    const value = {
+        currentTime,
+        duration,
+        isPlaying,
+        audioEngine,
+        pads,
+        selectedPadId,
+
+        play,
+        pause,
+        seek,
+        triggerPad,
+        setPadCuePoint,
+        clearPad,
+        selectPad,
+        updateSelectedPadParams,
+    };
+
+    return (
+        <AudioContext.Provider value={value}>
+            {children}
+        </AudioContext.Provider>
+    );
+};
+
+export const useAudio = () => {
+    const context = useContext(AudioContext);
+    if (context === undefined) {
+        throw new Error('useAudio must be used within an AudioProvider');
+    }
+    return context;
+};
