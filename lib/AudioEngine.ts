@@ -157,6 +157,61 @@ export class AudioEngine {
         });
     }
 
+    async loadFromFile(file: File): Promise<void> {
+        // Start init early
+        this.initAudioWorklet();
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                if (!e.target?.result) {
+                    reject(new Error('Failed to read file'));
+                    return;
+                }
+
+                try {
+                    const arrayBuffer = e.target.result as ArrayBuffer;
+
+                    if (!this.audioContext) {
+                        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                        this.masterGain = this.audioContext.createGain();
+                        this.masterGain.gain.value = this.masterVolume;
+                        this.masterGain.connect(this.audioContext.destination);
+                    }
+
+                    const buffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    this.audioBuffer = buffer;
+                    console.log('Audio buffer loaded from file successfully, duration:', buffer.duration);
+
+                    // Send buffer to Worklet
+                    await this.initAudioWorklet();
+                    if (this.workletNode) {
+                        const left = buffer.getChannelData(0);
+                        const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+
+                        this.workletNode.port.postMessage({
+                            type: 'load',
+                            left: left,
+                            right: right
+                        });
+                    }
+
+                    resolve();
+                } catch (err) {
+                    console.error('Error loading audio from file:', err);
+                    reject(err);
+                }
+            };
+
+            reader.onerror = () => {
+                reject(new Error('Failed to read file'));
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
     private _stopPlayback(preservePadId: boolean = false) {
         if (this.workletNode) {
             this.workletNode.port.postMessage({ type: 'stop' });

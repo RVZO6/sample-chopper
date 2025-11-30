@@ -8,10 +8,13 @@ export const Header: React.FC = () => {
   const {
     playMode, setPlayMode,
     masterVolume, setMasterVolume,
-    globalKeyShift, setGlobalKeyShift
+    globalKeyShift, setGlobalKeyShift,
+    loadFile
   } = useAudio();
 
   const [isDraggingKey, setIsDraggingKey] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const startTransposeRef = useRef(0);
   const accumulatedYRef = useRef(0);
@@ -53,6 +56,19 @@ export const Header: React.FC = () => {
     window.addEventListener('mouseup', handleMouseUp);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      await loadFile(file);
+      setShowUploadModal(false);
+    } catch (error) {
+      console.error('Failed to load audio file:', error);
+      alert(`Failed to load audio file: ${error}`);
+    }
+  };
+
   // Calculate display values
   const currentKeyIndex = ((BASE_KEY_INDEX + globalKeyShift) % 12 + 12) % 12;
   const noteName = KEYS[currentKeyIndex];
@@ -62,7 +78,10 @@ export const Header: React.FC = () => {
   return (
     <header className="bg-surface-dark border-b border-black/50 p-2 flex items-center justify-between text-sm flex-shrink-0 z-10">
       <div className="flex items-center gap-3">
-        <button className="p-2 rounded hover:bg-surface-light transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white">
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="p-2 rounded hover:bg-surface-light transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
+        >
           <span className="material-symbols-outlined text-lg">upload</span>
         </button>
       </div>
@@ -115,6 +134,37 @@ export const Header: React.FC = () => {
           />
         </div>
       </div>
+
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
+          <div className="bg-surface-dark rounded-lg border border-black/50 shadow-2xl p-6 w-80" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4 text-white">Upload Audio</h2>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-300 hover:text-white mb-3"
+            >
+              <span className="material-symbols-outlined inline-block mr-2 text-base">folder_open</span>
+              Browse Files
+            </button>
+
+            <button
+              onClick={() => setShowUploadModal(false)}
+              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

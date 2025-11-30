@@ -89,6 +89,9 @@ interface AudioContextType extends AudioState {
 
     // Param Updates (for selected pad)
     updateSelectedPadParams: (params: Partial<PadParams>) => void;
+
+    // File Loading
+    loadFile: (file: File) => Promise<void>;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
@@ -113,25 +116,9 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setIsPlaying(false);
         };
 
-        // Removed onPadStop - pause() handles everything now
-
-        // Load the audio file (use absolute path for Vite)
-        console.log('Loading audio file: /tarp.wav');
-        setIsLoading(true);
-        setLoadError(null);
-
-        engine.load('/tarp.wav')
-            .then(() => {
-                const dur = engine.getDuration();
-                console.log('Audio loaded successfully, duration:', dur);
-                setDuration(dur);
-                setIsLoading(false);
-            })
-            .catch((error) => {
-                console.error('Failed to load audio file:', error);
-                setLoadError(`Failed to load audio: ${error.message || 'Unknown error'}`);
-                setIsLoading(false);
-            });
+        // Don't load default file - wait for user to upload
+        // User will upload their own audio file via the upload modal
+        setIsLoading(false);
 
         // Cleanup on unmount
         return () => {
@@ -292,6 +279,20 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ));
     };
 
+    const loadFile = async (file: File) => {
+        try {
+            await audioEngine.loadFromFile(file);
+            const dur = audioEngine.getDuration();
+            setDuration(dur);
+            setCurrentTime(0);
+            // Clear all pads when loading new audio
+            setPads(INITIAL_PADS.map(p => ({ ...p, cuePoint: null })));
+        } catch (error) {
+            console.error('Failed to load audio file:', error);
+            throw error;
+        }
+    };
+
     const value = {
         currentTime,
         duration,
@@ -317,6 +318,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         clearPad,
         selectPad,
         updateSelectedPadParams,
+        loadFile,
     };
 
     return (
