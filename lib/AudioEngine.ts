@@ -19,7 +19,6 @@ interface PlaybackState {
 export class AudioEngine {
     // Audio buffer and context
     private audioBuffer: AudioBuffer | null = null;
-    private reversedBuffer: AudioBuffer | null = null; // Cached reversed buffer
     private audioContext: AudioContext | null = null;
     private workletNode: AudioWorkletNode | null = null;
     private wasmBytes: ArrayBuffer | null = null;
