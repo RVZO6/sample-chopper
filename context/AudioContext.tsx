@@ -67,6 +67,14 @@ interface AudioState {
 }
 
 interface AudioContextType extends AudioState {
+    // Global Controls
+    playMode: 'gate' | 'trigger';
+    setPlayMode: (mode: 'gate' | 'trigger') => void;
+    masterVolume: number;
+    setMasterVolume: (volume: number) => void;
+    globalKeyShift: number;
+    setGlobalKeyShift: (shift: number) => void;
+
     // Transport
     play: () => void;
     pause: () => void;
@@ -74,6 +82,7 @@ interface AudioContextType extends AudioState {
 
     // Pad Actions
     triggerPad: (id: string) => void;
+    stopPad: (id: string) => void;
     setPadCuePoint: (id: string, time: number) => void;
     clearPad: (id: string) => void;
     selectPad: (id: string) => void;
@@ -142,16 +151,16 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 }
                 return;
             }
-            
+
             try {
                 // Update current time - returns position based on what's playing
                 const newTime = audioEngine.getCurrentTime();
                 setCurrentTime(newTime);
-                
+
                 // Update playing state - check engine state directly
                 const playing = audioEngine.isPlaying;
                 setIsPlaying(playing);
-                
+
                 // Always continue the loop to ensure smooth updates
                 // Even when not playing, we still need to update for seek operations
                 animationFrame = requestAnimationFrame(update);
@@ -176,16 +185,27 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // NOTE: No longer applying selected pad params to engine globally
     // Each pad now has its own player instance with independent parameters
 
+    // Global Settings
+    const [playMode, setPlayMode] = useState<'gate' | 'trigger'>('trigger');
+    const [masterVolume, setMasterVolume] = useState(75);
+    const [globalKeyShift, setGlobalKeyShift] = useState(0);
+
+    // Update Engine Global Settings
+    useEffect(() => {
+        audioEngine.setMasterVolume(masterVolume / 100);
+    }, [masterVolume, audioEngine]);
+
+    useEffect(() => {
+        audioEngine.setGlobalPitchOffset(globalKeyShift);
+    }, [globalKeyShift, audioEngine]);
+
     const play = async () => {
         await audioEngine.play();
-        // State will be updated by the time loop, but set immediately for responsiveness
         setIsPlaying(audioEngine.isPlaying);
     };
 
     const pause = () => {
-        // Pause stops everything and resets to global mode
         audioEngine.pause();
-        // State will be updated by the time loop, but set immediately for responsiveness
         setIsPlaying(audioEngine.isPlaying);
         setCurrentTime(audioEngine.getCurrentTime());
     };
@@ -204,23 +224,53 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const engineParams: EnginePadParams = {
                 speed: pad.params.timeStretch / 100,
                 pitch: pad.params.keyShift,
-                reverse: pad.params.isReverse
+                reverse: pad.params.isReverse,
+                attack: pad.params.attack / 1000, // Convert ms to seconds (assuming input is ms?)
+                // Wait, ControlPanel uses 0-100? No, let's check ControlPanel default.
+                // ControlPanel defaults: attack 0, release 30.
+                // Usually these are ms or arbitrary 0-100.
+                // Let's assume they are milliseconds for now, or small seconds?
+                // If attack is 0-100, 100ms is 0.1s.
+                // Let's assume the knob returns 0-100 and we treat it as 0-2s?
+                // Or just ms. 100ms is short.
+                // Let's assume 0-100 maps to 0-1s for now?
+                // Actually, let's check ControlPanel again. It just passes the value.
+                // Let's assume the value is in "units" and we convert here.
+                // Let's map 0-100 to 0-2 seconds.
+                release: pad.params.release / 50, // 30 -> 0.6s
+                volume: 1.0 // Pad volume not yet in UI, default to 1
             };
+
+            // Actually, let's look at the Knob.
+            // If the user sets attack to 50, that's a lot if it's seconds.
+            // Let's treat 0-100 as 0-1000ms (0-1s) for attack, and maybe 0-2000ms for release?
+            // Let's try: value / 100 * 2 (0-2 seconds)
+            engineParams.attack = (pad.params.attack / 100) * 2;
+            engineParams.release = (pad.params.release / 100) * 5; // 0-5 seconds release
 
             // Play this specific pad with its parameters
             await audioEngine.playPad(id, pad.cuePoint, engineParams);
-            
-            // Immediately update state to ensure waveform reflects pad playback
+
             setIsPlaying(audioEngine.isPlaying);
             setCurrentTime(audioEngine.getCurrentTime());
         }
+    };
+
+    const stopPad = (id: string) => {
+        // Only stop if the current pad is the one being released (or all pads?)
+        // AudioEngine is monophonic for pads, so stopPad() stops whatever is playing.
+        // But we should check if we are in Gate mode?
+        // No, stopPad is called by UI when it wants to stop.
+        // We should check if the stopped pad is the one playing?
+        // AudioEngine.stopPad() handles logic.
+        audioEngine.stopPad();
     };
 
     const setPadCuePoint = (id: string, time: number) => {
         setPads(prev => prev.map(p =>
             p.id === id ? { ...p, cuePoint: time } : p
         ));
-        setSelectedPadId(id); // Select when setting
+        setSelectedPadId(id);
     };
 
     const clearPad = (id: string) => {
@@ -250,10 +300,19 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         pads,
         selectedPadId,
 
+        // Global Settings
+        playMode,
+        setPlayMode,
+        masterVolume,
+        setMasterVolume,
+        globalKeyShift,
+        setGlobalKeyShift,
+
         play,
         pause,
         seek,
         triggerPad,
+        stopPad,
         setPadCuePoint,
         clearPad,
         selectPad,

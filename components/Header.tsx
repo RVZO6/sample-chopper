@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
+import { useAudio } from '../context/AudioContext';
 
 const KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const BASE_KEY_INDEX = 3; // D#
 
 export const Header: React.FC = () => {
-  const [playMode, setPlayMode] = useState<'gate' | 'trigger'>('gate');
-  const [volume, setVolume] = useState(75);
+  const {
+    playMode, setPlayMode,
+    masterVolume, setMasterVolume,
+    globalKeyShift, setGlobalKeyShift
+  } = useAudio();
 
-  // Transpose state (semitones relative to base key)
-  const [transpose, setTranspose] = useState(0);
   const [isDraggingKey, setIsDraggingKey] = useState(false);
 
   const startTransposeRef = useRef(0);
@@ -23,11 +25,10 @@ export const Header: React.FC = () => {
       await target.requestPointerLock();
     } catch (err) {
       console.error("Pointer lock failed:", err);
-      // Continue without pointer lock if it fails, though interaction might be limited by screen edges
     }
 
     setIsDraggingKey(true);
-    startTransposeRef.current = transpose;
+    startTransposeRef.current = globalKeyShift;
     accumulatedYRef.current = 0;
 
     const handleMouseMove = (ev: MouseEvent) => {
@@ -38,7 +39,7 @@ export const Header: React.FC = () => {
       // Sensitivity: 15px per semitone
       const steps = Math.floor(accumulatedYRef.current / 15);
 
-      setTranspose(startTransposeRef.current + steps);
+      setGlobalKeyShift(startTransposeRef.current + steps);
     };
 
     const handleMouseUp = () => {
@@ -53,10 +54,10 @@ export const Header: React.FC = () => {
   };
 
   // Calculate display values
-  const currentKeyIndex = ((BASE_KEY_INDEX + transpose) % 12 + 12) % 12;
+  const currentKeyIndex = ((BASE_KEY_INDEX + globalKeyShift) % 12 + 12) % 12;
   const noteName = KEYS[currentKeyIndex];
-  const sign = transpose > 0 ? '+' : '';
-  const offsetText = `${sign}${transpose}`; // Removed 'st' for compact view
+  const sign = globalKeyShift > 0 ? '+' : '';
+  const offsetText = `${sign}${globalKeyShift}`;
 
   return (
     <header className="bg-surface-dark border-b border-black/50 p-2 flex items-center justify-between text-sm flex-shrink-0 z-10">
@@ -109,8 +110,8 @@ export const Header: React.FC = () => {
             type="range"
             min="0"
             max="100"
-            value={volume}
-            onChange={(e) => setVolume(parseInt(e.target.value))}
+            value={masterVolume}
+            onChange={(e) => setMasterVolume(parseInt(e.target.value))}
           />
         </div>
       </div>

@@ -2,6 +2,9 @@ export interface PadParams {
     speed: number;      // playback rate (0.5 to 2.0 recommended)
     pitch: number;      // pitch in semitones (-12 to +12)
     reverse: boolean;   // reverse playback
+    attack: number;     // attack time in seconds
+    release: number;    // release time in seconds
+    volume: number;     // pad volume (0-1)
 }
 
 type PlaybackMode = 'global' | 'pad';
@@ -21,6 +24,8 @@ export class AudioEngine {
     private audioBuffer: AudioBuffer | null = null;
     private audioContext: AudioContext | null = null;
     private workletNode: AudioWorkletNode | null = null;
+    private envelopeGain: GainNode | null = null;
+    private masterGain: GainNode | null = null;
     private wasmBytes: ArrayBuffer | null = null;
     private initPromise: Promise<void> | null = null;
 
@@ -30,13 +35,15 @@ export class AudioEngine {
         cuePoint: 0,
         startTime: 0,
         duration: 0,
-        params: { speed: 1.0, pitch: 0, reverse: false },
+        params: { speed: 1.0, pitch: 0, reverse: false, attack: 0, release: 0.1, volume: 1.0 },
         isPlaying: false,
         currentPadId: null
     };
 
-    // Global transport offset (for seek/resume)
+    // Global settings
     private globalOffset: number = 0;
+    private globalPitchOffset: number = 0; // Global key shift in semitones
+    private masterVolume: number = 0.75;
 
     // Callbacks
     private _onStop: (() => void) | null = null;
@@ -45,10 +52,35 @@ export class AudioEngine {
     constructor() {
         // Initialize AudioContext
         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.masterGain = this.audioContext.createGain();
+        this.masterGain.gain.value = this.masterVolume;
+        this.masterGain.connect(this.audioContext.destination);
     }
 
     set onStop(callback: () => void) {
         this._onStop = callback;
+    }
+
+    setMasterVolume(val: number) {
+        this.masterVolume = Math.max(0, Math.min(1, val));
+        if (this.masterGain && this.audioContext) {
+            // Smooth transition
+            this.masterGain.gain.setTargetAtTime(this.masterVolume, this.audioContext.currentTime, 0.02);
+        }
+    }
+
+    setGlobalPitchOffset(semitones: number) {
+        this.globalPitchOffset = semitones;
+
+        // Apply immediately to active playback
+        if (this.workletNode && this.state.isPlaying) {
+            const totalPitch = this.state.params.pitch + this.globalPitchOffset;
+            const pitchRatio = totalPitch === 0 ? 1.0 : Math.pow(2, totalPitch / 12);
+            const pitchParam = this.workletNode.parameters.get('pitch');
+            if (pitchParam) {
+                pitchParam.setTargetAtTime(pitchRatio, this.audioContext?.currentTime || 0, 0.02);
+            }
+        }
     }
 
     private async initAudioWorklet() {
@@ -91,6 +123,10 @@ export class AudioEngine {
                 .then(ab => {
                     if (!this.audioContext) {
                         this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                        // Re-create master gain if context was recreated (unlikely but safe)
+                        this.masterGain = this.audioContext.createGain();
+                        this.masterGain.gain.value = this.masterVolume;
+                        this.masterGain.connect(this.audioContext.destination);
                     }
                     return this.audioContext.decodeAudioData(ab);
                 })
@@ -125,6 +161,12 @@ export class AudioEngine {
         if (this.workletNode) {
             this.workletNode.port.postMessage({ type: 'stop' });
         }
+
+        // Apply release if playing?
+        // For now, hard stop is safer for rapid re-triggering,
+        // but we could ramp down envelopeGain if we wanted a smooth stop.
+        // However, _stopPlayback is often called right before _startPlayback,
+        // so we want to be ready to play immediately.
 
         this.state.isPlaying = false;
         // Only clear currentPadId if not preserving (allows immediate restart of same pad)
@@ -174,7 +216,7 @@ export class AudioEngine {
 
         // FORCE reset to global mode with EXACT normal settings
         this.state.mode = 'global';
-        this.state.params = { speed: 1.0, pitch: 0, reverse: false };
+        this.state.params = { speed: 1.0, pitch: 0, reverse: false, attack: 0, release: 0.1, volume: 1.0 };
         this.state.cuePoint = this.globalOffset;
 
         // Calculate duration
@@ -205,7 +247,7 @@ export class AudioEngine {
 
         // FORCE reset to global mode
         this.state.mode = 'global';
-        this.state.params = { speed: 1.0, pitch: 0, reverse: false };
+        this.state.params = { speed: 1.0, pitch: 0, reverse: false, attack: 0, release: 0.1, volume: 1.0 };
         this.state.isPlaying = false;
         this.state.currentPadId = null;
     }
@@ -219,7 +261,7 @@ export class AudioEngine {
 
         this.globalOffset = Math.max(0, Math.min(time, this.getDuration()));
         this.state.mode = 'global';
-        this.state.params = { speed: 1.0, pitch: 0, reverse: false };
+        this.state.params = { speed: 1.0, pitch: 0, reverse: false, attack: 0, release: 0.1, volume: 1.0 };
 
         if (wasPlaying) {
             this.play();
@@ -312,11 +354,7 @@ export class AudioEngine {
         this.state.mode = 'pad';
         this.state.currentPadId = padId;
         this.state.cuePoint = cuePoint;
-        this.state.params = {
-            speed: params.speed,
-            pitch: params.pitch,
-            reverse: params.reverse
-        };
+        this.state.params = { ...params }; // Copy params
 
         // Calculate duration
         let duration: number;
@@ -337,7 +375,38 @@ export class AudioEngine {
     }
 
     stopPad() {
-        this.pause(); // pause() already handles resetting to global mode
+        // If we are in pad mode, stop.
+        if (this.isPadPlaying) {
+            // Store the cue point before stopping so we can return to it
+            const cuePoint = this.state.cuePoint;
+
+            // Quick fade out for smooth release
+            if (this.envelopeGain && this.audioContext) {
+                const now = this.audioContext.currentTime;
+                this.envelopeGain.gain.cancelScheduledValues(now);
+                this.envelopeGain.gain.setValueAtTime(this.envelopeGain.gain.value, now);
+                this.envelopeGain.gain.linearRampToValueAtTime(0, now + 0.05);
+
+                // Stop worklet and return to cue point
+                setTimeout(() => {
+                    if (this.state.mode === 'pad') { // Check if still in pad mode
+                        this._stopPlayback();
+                        // Return to the pad's cue point (paused)
+                        this.globalOffset = cuePoint;
+                        this.state.mode = 'global';
+                        this.state.isPlaying = false;
+                    }
+                }, 50);
+            } else {
+                this._stopPlayback();
+                // Return to the pad's cue point (paused)
+                this.globalOffset = cuePoint;
+                this.state.mode = 'global';
+                this.state.isPlaying = false;
+            }
+        } else {
+            this.pause(); // Fallback
+        }
     }
 
     // ===== INTERNAL PLAYBACK METHODS =====
@@ -391,19 +460,30 @@ export class AudioEngine {
                 }
             }
 
-            // Connect if not connected (we don't disconnect anymore to keep state)
-            // But if we disconnected in stop(), we need to reconnect.
-            // Actually, let's keep it connected and just use stop message.
-            // But _stopPlayback disconnects?
-            // Let's change _stopPlayback to NOT disconnect, just send stop message.
-            // But if we don't disconnect, it might output silence?
-            // RubberBand outputs silence when not processing.
-            // Let's ensure we are connected.
-            try {
-                this.workletNode.connect(this.audioContext.destination);
-            } catch (e) {
-                // Already connected?
+            // Create Envelope Gain Node
+            if (!this.envelopeGain) {
+                this.envelopeGain = this.audioContext.createGain();
+                this.envelopeGain.connect(this.masterGain!); // Connect to master
             }
+
+            // Connect Worklet -> Envelope -> Master -> Destination
+            // Disconnect first to be safe
+            try { this.workletNode.disconnect(); } catch (e) { }
+            this.workletNode.connect(this.envelopeGain);
+
+            // Apply Envelope
+            const now = this.audioContext.currentTime;
+            const attack = params.attack || 0.005; // Min attack to avoid clicks
+            const release = params.release || 0.01;
+            const volume = params.volume !== undefined ? params.volume : 1.0;
+
+            this.envelopeGain.gain.cancelScheduledValues(now);
+            this.envelopeGain.gain.setValueAtTime(0, now);
+            this.envelopeGain.gain.linearRampToValueAtTime(volume, now + attack);
+            // We don't schedule release here because we don't know when the note ends in Trigger mode
+            // (it plays full duration). But we should ramp down at the very end of duration?
+            // Or just let it play.
+            // For Gate mode, stopPad() handles the release.
 
             // Calculate samples
             const sampleRate = this.audioBuffer.sampleRate;
@@ -419,7 +499,9 @@ export class AudioEngine {
             });
 
             // Set parameters
-            const pitchRatio = params.pitch === 0 ? 1.0 : Math.pow(2, params.pitch / 12);
+            // Combine pad pitch with global pitch offset
+            const totalPitch = params.pitch + this.globalPitchOffset;
+            const pitchRatio = totalPitch === 0 ? 1.0 : Math.pow(2, totalPitch / 12);
             const tempo = params.speed;
 
             const tempoParam = this.workletNode.parameters.get('tempo');

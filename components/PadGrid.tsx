@@ -1,40 +1,53 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Pad } from './Pad';
 import { useAudio } from '../context/AudioContext';
 
 export const PadGrid: React.FC = () => {
-  const { pads, currentTime, triggerPad, setPadCuePoint, clearPad } = useAudio();
+  const { pads, currentTime, triggerPad, stopPad, setPadCuePoint, clearPad, playMode } = useAudio();
+
+  // Track active keys to prevent repeat firing and handle gate mode
+  const activeKeysRef = useRef<Set<string>>(new Set());
 
   // Keyboard support
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
+      if (e.repeat) return; // Ignore auto-repeat
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       const pad = pads.find(p => p.key === e.code);
       if (pad) {
         e.preventDefault();
+        activeKeysRef.current.add(pad.id);
+
         if (pad.cuePoint !== null) {
           triggerPad(pad.id);
-        } else {
-          // Optional: Assign on key press if empty? 
-          // For now, let's stick to click-to-assign as per request, 
-          // but maybe flash the pad or something.
-          // Actually, standard behavior is often "play if set", "set if empty" is usually a specific mode.
-          // User said: "if you click one of those pads or press its relevant key, it starts playing from that location."
-          // User also said: "to add an empty pad... you left click the pad"
-          // So let's keep key press for triggering only for now to avoid accidental sets.
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      const pad = pads.find(p => p.key === e.code);
+      if (pad) {
+        e.preventDefault();
+        activeKeysRef.current.delete(pad.id);
+
+        if (playMode === 'gate' && pad.cuePoint !== null) {
+          stopPad(pad.id);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pads, triggerPad]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [pads, triggerPad, stopPad, playMode]);
 
-  const handlePadClick = (id: string, e: React.MouseEvent) => {
-    // Only allow left click (button 0) to trigger/set pads
-    // Also check for Ctrl key (Mac right-click) which often registers as button 0
+  const handlePadMouseDown = (id: string, e: React.MouseEvent) => {
     if (e.button !== 0 || e.ctrlKey) return;
 
     const pad = pads.find(p => p.id === id);
@@ -47,9 +60,21 @@ export const PadGrid: React.FC = () => {
     }
   };
 
+  const handlePadMouseUp = (id: string) => {
+    if (playMode === 'gate') {
+      stopPad(id);
+    }
+  };
+
+  const handlePadMouseLeave = (id: string) => {
+    if (playMode === 'gate') {
+      stopPad(id);
+    }
+  };
+
   const handlePadContextMenu = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop event from bubbling up
+    e.stopPropagation();
     clearPad(id);
   };
 
@@ -61,7 +86,9 @@ export const PadGrid: React.FC = () => {
           label={pad.label}
           colorClass={pad.color}
           isEmpty={pad.cuePoint === null}
-          onClick={(e) => handlePadClick(pad.id, e)}
+          onMouseDown={(e) => handlePadMouseDown(pad.id, e)}
+          onMouseUp={() => handlePadMouseUp(pad.id)}
+          onMouseLeave={() => handlePadMouseLeave(pad.id)}
           onContextMenu={(e) => handlePadContextMenu(pad.id, e)}
         />
       ))}
