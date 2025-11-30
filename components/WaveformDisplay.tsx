@@ -4,7 +4,7 @@ import { useAudio } from '../context/AudioContext';
 export const WaveformDisplay: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { audioEngine, currentTime, duration, seek, play, pause, isPlaying, pads } = useAudio();
+  const { audioEngine, currentTime, duration, seek, play, pause, isPlaying, pads, setPadCuePoint } = useAudio();
   const [peaks, setPeaks] = useState<number[]>([]);
   const [zoom, setZoom] = useState(100); // Pixels per second
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -253,6 +253,12 @@ export const WaveformDisplay: React.FC = () => {
   const [isDraggingState, setIsDraggingState] = useState(false);
   const hasDragged = useRef(false);
   const lastX = useRef(0);
+  const clickedOnFlag = useRef(false);
+
+  // Flag dragging state
+  const [draggingFlagId, setDraggingFlagId] = useState<string | null>(null);
+  const flagDragStartX = useRef(0);
+  const flagDragStartTime = useRef(0);
 
   // Global mouse up
   useEffect(() => {
@@ -262,59 +268,91 @@ export const WaveformDisplay: React.FC = () => {
         setIsDraggingState(false);
         document.body.style.cursor = 'default';
       }
+      if (draggingFlagId) {
+        setDraggingFlagId(null);
+        document.body.style.cursor = 'default';
+      }
     };
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, []);
+  }, [draggingFlagId]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // Don't start drag if clicking on a flag
+    if (clickedOnFlag.current) {
+      clickedOnFlag.current = false;
+      return;
+    }
+
+    // Start potential drag (don't seek yet)
     isDragging.current = true;
-    setIsDraggingState(true);
     hasDragged.current = false;
     lastX.current = e.clientX;
-    document.body.style.cursor = 'grabbing';
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current) return;
+
     const deltaX = e.clientX - lastX.current;
-    if (Math.abs(deltaX) > 2) {
+
+    // Only show grabbing cursor after movement starts
+    if (Math.abs(deltaX) > 2 && !hasDragged.current) {
       hasDragged.current = true;
+      setIsDraggingState(true);
+      document.body.style.cursor = 'grabbing';
     }
-    lastX.current = e.clientX;
-    const dt = -deltaX / zoom;
-    const newTime = Math.max(0, Math.min(duration, currentTime + dt));
-    seek(newTime);
+
+    if (hasDragged.current) {
+      lastX.current = e.clientX;
+      const dt = -deltaX / zoom;
+      const newTime = Math.max(0, Math.min(duration, currentTime + dt));
+      seek(newTime);
+    }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent) => {
+    // If we didn't drag, this is a click - seek to position
+    if (isDragging.current && !hasDragged.current) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const clickX = e.clientX - rect.left;
+        const centerX = rect.width / 2;
+        const pixelsFromCenter = clickX - centerX;
+        const timeOffset = pixelsFromCenter / zoom;
+        const clickedTime = currentTime + timeOffset;
+        const newTime = Math.max(0, Math.min(duration, clickedTime));
+        seek(newTime);
+      }
+    }
+
     isDragging.current = false;
     setIsDraggingState(false);
+    hasDragged.current = false;
     document.body.style.cursor = 'default';
   };
 
-  // Click to seek (only if not dragging)
-  const handleClick = (e: React.MouseEvent) => {
-    // Only seek if user didn't drag
-    if (hasDragged.current) {
-      hasDragged.current = false;
-      return;
-    }
+  // Flag drag handlers
+  const handleFlagMouseDown = (padId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    clickedOnFlag.current = true;
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const pad = pads.find(p => p.id === padId);
+    if (!pad || pad.cuePoint === null) return;
 
-    const clickX = e.clientX - rect.left;
-    const centerX = rect.width / 2;
+    setDraggingFlagId(padId);
+    flagDragStartX.current = e.clientX;
+    flagDragStartTime.current = pad.cuePoint;
+    document.body.style.cursor = 'ew-resize';
+  };
 
-    // Calculate time based on click position relative to center
-    const pixelsFromCenter = clickX - centerX;
-    const timeOffset = pixelsFromCenter / zoom;
-    const clickedTime = currentTime + timeOffset;
+  const handleFlagMouseMove = (e: React.MouseEvent) => {
+    if (!draggingFlagId) return;
 
-    // Seek to clicked position
-    const newTime = Math.max(0, Math.min(duration, clickedTime));
-    seek(newTime);
+    const deltaX = e.clientX - flagDragStartX.current;
+    const deltaTime = deltaX / zoom;
+    const newTime = Math.max(0, Math.min(duration, flagDragStartTime.current + deltaTime));
+
+    setPadCuePoint(draggingFlagId, newTime);
   };
 
   return (
@@ -322,11 +360,10 @@ export const WaveformDisplay: React.FC = () => {
       ref={containerRef}
       className="h-64 bg-surface-dark rounded relative shadow-ui-element-inset overflow-hidden border border-black/50"
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
+      onMouseMove={draggingFlagId ? handleFlagMouseMove : handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onClick={handleClick}
-      style={{ cursor: isDraggingState ? 'grabbing' : 'crosshair' }}
+      style={{ cursor: draggingFlagId ? 'ew-resize' : (isDraggingState ? 'grabbing' : 'crosshair') }}
     >
       <canvas ref={canvasRef} className="block w-full h-full" />
 
@@ -348,6 +385,57 @@ export const WaveformDisplay: React.FC = () => {
           <span className="material-symbols-outlined text-sm">remove</span>
         </button>
       </div>
+
+      {/* Interactive Flag Overlays - Top and Bottom Triangles Only */}
+      {pads.map(pad => {
+        if (pad.cuePoint === null) return null;
+
+        const container = containerRef.current;
+        if (!container) return null;
+
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const centerX = width / 2;
+        const pixelsPerSecond = zoom;
+        const currentPixel = currentTime * pixelsPerSecond;
+        const startX = centerX - currentPixel;
+        const padPixel = pad.cuePoint * pixelsPerSecond;
+        const x = startX + padPixel;
+
+        // Only render if visible
+        if (x < -20 || x > width + 20) return null;
+
+        return (
+          <React.Fragment key={pad.id}>
+            {/* Top triangle hit area */}
+            <div
+              onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
+              className="absolute cursor-ew-resize hover:opacity-50"
+              style={{
+                left: `${x - 6}px`,
+                top: 0,
+                width: '20px',
+                height: '20px',
+                pointerEvents: 'auto'
+              }}
+              title={`Drag to reposition ${pad.label}`}
+            />
+            {/* Bottom triangle hit area */}
+            <div
+              onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
+              className="absolute cursor-ew-resize hover:opacity-50"
+              style={{
+                left: `${x - 6}px`,
+                bottom: 0,
+                width: '20px',
+                height: '20px',
+                pointerEvents: 'auto'
+              }}
+              title={`Drag to reposition ${pad.label}`}
+            />
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 };
