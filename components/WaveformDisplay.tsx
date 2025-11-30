@@ -61,7 +61,7 @@ export const WaveformDisplay: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      
+
       if (e.code === 'Space') {
         e.preventDefault();
         if (isPlaying) {
@@ -157,19 +157,7 @@ export const WaveformDisplay: React.FC = () => {
       ctx.stroke();
     }
 
-    // Draw Center Caret (thick white line with glow)
-    ctx.save();
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(centerX, 0);
-    ctx.lineTo(centerX, height);
-    ctx.stroke();
-    ctx.restore();
-
-    // Draw Cue Point Flags (Now drawn LAST to be on top of everything)
+    // Draw Cue Point Flags
     pads.forEach(pad => {
       if (pad.cuePoint === null) return;
 
@@ -245,6 +233,18 @@ export const WaveformDisplay: React.FC = () => {
         : `${t.toFixed(tickInterval < 1 ? 1 : 0)}s`;
       ctx.fillText(timeStr, x, height - 14);
     }
+
+    // Draw Center Caret LAST (on top of everything - thick white line with glow)
+    ctx.save();
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(centerX, 0);
+    ctx.lineTo(centerX, height);
+    ctx.stroke();
+    ctx.restore();
 
   }, [peaks, zoom, currentTime, duration, dimensions, pads]);
 

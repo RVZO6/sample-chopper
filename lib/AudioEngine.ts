@@ -379,24 +379,28 @@ export class AudioEngine {
         if (this.isPadPlaying) {
             // Store the cue point before stopping so we can return to it
             const cuePoint = this.state.cuePoint;
+            const currentPadId = this.state.currentPadId;
 
             // Quick fade out for smooth release
             if (this.envelopeGain && this.audioContext) {
                 const now = this.audioContext.currentTime;
                 this.envelopeGain.gain.cancelScheduledValues(now);
                 this.envelopeGain.gain.setValueAtTime(this.envelopeGain.gain.value, now);
-                this.envelopeGain.gain.linearRampToValueAtTime(0, now + 0.05);
+                this.envelopeGain.gain.linearRampToValueAtTime(0, now + 0.01); // Very quick 10ms fade
 
-                // Stop worklet and return to cue point
+                // Stop worklet and return to cue point (but only if another pad didn't start)
                 setTimeout(() => {
-                    if (this.state.mode === 'pad') { // Check if still in pad mode
+                    // Only stop and return if we're still in pad mode with the SAME pad
+                    // If a new pad was triggered, this.state.currentPadId will be different
+                    if (this.state.mode === 'pad' && this.state.currentPadId === currentPadId) {
                         this._stopPlayback();
                         // Return to the pad's cue point (paused)
                         this.globalOffset = cuePoint;
                         this.state.mode = 'global';
                         this.state.isPlaying = false;
                     }
-                }, 50);
+                    // If currentPadId changed, a new pad is already playing, so do nothing
+                }, 15); // Short delay for fade
             } else {
                 this._stopPlayback();
                 // Return to the pad's cue point (paused)

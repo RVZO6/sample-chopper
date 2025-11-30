@@ -3,10 +3,11 @@ import { Pad } from './Pad';
 import { useAudio } from '../context/AudioContext';
 
 export const PadGrid: React.FC = () => {
-  const { pads, currentTime, triggerPad, stopPad, setPadCuePoint, clearPad, playMode } = useAudio();
+  const { pads, currentTime, triggerPad, stopPad, setPadCuePoint, clearPad, playMode, audioEngine } = useAudio();
 
   // Track active keys to prevent repeat firing and handle gate mode
   const activeKeysRef = useRef<Set<string>>(new Set());
+  const currentlyPlayingPadRef = useRef<string | null>(null);
 
   // Keyboard support
   useEffect(() => {
@@ -21,6 +22,7 @@ export const PadGrid: React.FC = () => {
 
         if (pad.cuePoint !== null) {
           triggerPad(pad.id);
+          currentlyPlayingPadRef.current = pad.id; // Track which pad is now active
         }
       }
     };
@@ -33,9 +35,12 @@ export const PadGrid: React.FC = () => {
         e.preventDefault();
         activeKeysRef.current.delete(pad.id);
 
-        if (playMode === 'gate' && pad.cuePoint !== null) {
+        // Only stop if this is the CURRENTLY PLAYING pad
+        if (playMode === 'gate' && pad.cuePoint !== null && currentlyPlayingPadRef.current === pad.id) {
           stopPad(pad.id);
+          currentlyPlayingPadRef.current = null;
         }
+        // If a different pad is playing, do nothing
       }
     };
 
@@ -55,20 +60,25 @@ export const PadGrid: React.FC = () => {
 
     if (pad.cuePoint !== null) {
       triggerPad(id);
+      currentlyPlayingPadRef.current = id; // Track which pad is now active
     } else {
       setPadCuePoint(id, currentTime);
     }
   };
 
   const handlePadMouseUp = (id: string) => {
-    if (playMode === 'gate') {
+    // Only stop if this is the CURRENTLY PLAYING pad
+    if (playMode === 'gate' && currentlyPlayingPadRef.current === id) {
       stopPad(id);
+      currentlyPlayingPadRef.current = null;
     }
   };
 
   const handlePadMouseLeave = (id: string) => {
-    if (playMode === 'gate') {
+    // Only stop if this is the CURRENTLY PLAYING pad
+    if (playMode === 'gate' && currentlyPlayingPadRef.current === id) {
       stopPad(id);
+      currentlyPlayingPadRef.current = null;
     }
   };
 
