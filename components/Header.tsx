@@ -2,25 +2,32 @@ import React, { useState, useRef } from 'react';
 import { useAudio } from '@/context/AudioContext';
 
 const KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const BASE_KEY_INDEX = 3; // D#
+// const BASE_KEY_INDEX = 3; // D# - Removed default
 
 export const Header: React.FC = () => {
   const {
     playMode, setPlayMode,
     masterVolume, setMasterVolume,
     globalKeyShift, setGlobalKeyShift,
-    loadFile
+    loadFile,
+    detectedBpm, detectedKey,
+    currentBpm, setBpm,
+    isAnalyzing
   } = useAudio();
 
   const [isDraggingKey, setIsDraggingKey] = useState(false);
+  const [isDraggingBpm, setIsDraggingBpm] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const startTransposeRef = useRef(0);
+  const startBpmRef = useRef(0);
   const accumulatedYRef = useRef(0);
 
   const handleKeyDragStart = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!detectedKey) return; // Lock if no key detected
+
     const target = e.currentTarget as HTMLElement;
 
     // Request pointer lock for infinite dragging
@@ -53,6 +60,41 @@ export const Header: React.FC = () => {
     };
 
     window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleBpmDragStart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!currentBpm) return; // Lock if no BPM
+
+    const target = e.currentTarget as HTMLElement;
+
+    try {
+      await target.requestPointerLock();
+    } catch (err) {
+      console.error("Pointer lock failed:", err);
+    }
+
+    setIsDraggingBpm(true);
+    startBpmRef.current = currentBpm;
+    accumulatedYRef.current = 0;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      accumulatedYRef.current -= ev.movementY;
+      // Sensitivity: 5px per BPM
+      const steps = Math.floor(accumulatedYRef.current / 5);
+      setBpm(Math.max(1, startBpmRef.current + steps));
+    };
+
+    const handleMouseUp = () => {
+      document.exitPointerLock();
+      setIsDraggingBpm(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
 
@@ -70,10 +112,42 @@ export const Header: React.FC = () => {
   };
 
   // Calculate display values
-  const currentKeyIndex = ((BASE_KEY_INDEX + globalKeyShift) % 12 + 12) % 12;
-  const noteName = KEYS[currentKeyIndex];
+  // Parse detected key to find base index
+  let noteName = '--';
+
+  if (detectedKey) {
+    let baseIndex = 0; // Default to C if detected but unknown? Or just fail?
+    // detectedKey format: "C major", "F# minor", etc.
+    const keyPart = detectedKey.split(' ')[0];
+    const foundIndex = KEYS.indexOf(keyPart);
+    if (foundIndex !== -1) {
+      baseIndex = foundIndex;
+      const currentKeyIndex = ((baseIndex + globalKeyShift) % 12 + 12) % 12;
+      noteName = KEYS[currentKeyIndex];
+    }
+  }
   const sign = globalKeyShift > 0 ? '+' : '';
-  const offsetText = `${sign}${globalKeyShift}`;
+  const offsetText = detectedKey ? `${sign}${globalKeyShift}` : '-';
+
+  // Use detected key if available and no shift, otherwise calculate
+  // Actually, we want to show the RESULTING key.
+  // If we have a detected key, we should probably parse it to find the index?
+  // For now, let's just show the detected key + offset if it exists, or just the offset if not.
+  // But the user wants "The default key is the detected key".
+  // So if detectedKey is "Cm", and shift is +2, it should be "Dm".
+  // That's complex to parse.
+  // Let's just show the detected key in a separate badge if it exists, and the shift controls the relative pitch.
+  // OR, simpler: Just show the Key control as a transposer.
+  // And show the "Detected: Cm" somewhere else?
+  // The user said: "Add a BPM thing in the header... essentia.js detects the key and the BPM... same for the key. So there is no default key. The default key is the detected key."
+  // This implies the Key Display should start at the detected key.
+  // But our Key Display is currently just an index into KEYS array (C, C#, etc).
+  // If Essentia returns "G major", we should probably set the base key to G.
+  // But our system is relative.
+  // Let's just display the Detected Key and BPM as "Original" values, and the controls as "Current" values.
+
+  // Actually, let's just add the BPM control for now as requested.
+  // "Add a BPM thing in the header in the middle or to the right of the key little module thing"
 
   return (
     <header className="bg-surface-dark border-b border-black/50 p-2 flex items-center justify-between text-sm shrink-0 z-10">
@@ -92,13 +166,33 @@ export const Header: React.FC = () => {
           <span className="text-xs text-gray-400 select-none">KEY</span>
           <div
             onMouseDown={handleKeyDragStart}
-            className={`bg-background-dark rounded-sm w-20 h-8 px-2 flex items-center justify-between font-semibold shadow-ui-element-inset cursor-ns-resize select-none transition-colors ${isDraggingKey ? 'text-primary' : ''}`}
-            title="Drag up/down to transpose"
+            className={`bg-background-dark rounded-sm w-20 h-8 px-2 flex items-center justify-between font-semibold shadow-ui-element-inset select-none transition-colors 
+              ${detectedKey ? 'cursor-ns-resize hover:text-white' : 'cursor-not-allowed opacity-50 text-gray-600'} 
+              ${isDraggingKey ? 'text-primary' : ''}`}
+            title={detectedKey ? "Drag up/down to transpose" : "Upload file to enable"}
           >
-            <span className={`text-base text-left font-mono ${isDraggingKey ? 'text-primary' : 'text-gray-200'}`}>{noteName}</span>
+            <span className={`text-base text-left font-mono ${isDraggingKey ? 'text-primary' : (detectedKey ? 'text-gray-200' : 'text-gray-600')}`}>{noteName}</span>
             <span className={`text-xs text-right font-mono ${isDraggingKey ? 'text-primary/70' : 'text-gray-500'}`}>{offsetText}</span>
           </div>
         </div>
+
+        {/* BPM Display - Draggable */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400 select-none">BPM</span>
+          <div
+            onMouseDown={handleBpmDragStart}
+            className={`bg-background-dark rounded-sm w-16 h-8 px-1 flex items-center justify-center font-semibold shadow-ui-element-inset select-none transition-colors 
+              ${currentBpm ? 'cursor-ns-resize hover:text-white' : 'cursor-not-allowed opacity-50 text-gray-600'}
+              ${isDraggingBpm ? 'text-primary' : ''}`}
+            title={currentBpm ? "Drag up/down to change BPM" : "Upload file to enable"}
+          >
+            <span className={`text-base font-mono ${isDraggingBpm ? 'text-primary' : (currentBpm ? 'text-gray-200' : 'text-gray-600')}`}>
+              {isAnalyzing ? '--' : (currentBpm ? currentBpm : '--')}
+            </span>
+          </div>
+        </div>
+
+
 
         {/* Play Mode Toggle (Gate vs Trigger) */}
         <div className="flex items-center gap-1 bg-background-dark rounded-sm p-1 shadow-ui-element-inset">

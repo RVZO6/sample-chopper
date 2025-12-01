@@ -43,6 +43,7 @@ export class AudioEngine {
     // Global settings
     private globalOffset: number = 0;
     private globalPitchOffset: number = 0; // Global key shift in semitones
+    private globalSpeed: number = 1.0; // Global speed multiplier
     private masterVolume: number = 0.75;
 
     // Callbacks
@@ -79,6 +80,19 @@ export class AudioEngine {
             const pitchParam = this.workletNode.parameters.get('pitch');
             if (pitchParam) {
                 pitchParam.setTargetAtTime(pitchRatio, this.audioContext?.currentTime || 0, 0.02);
+            }
+        }
+    }
+
+    setGlobalSpeed(speed: number) {
+        this.globalSpeed = Math.max(0.1, Math.min(4.0, speed)); // Clamp to reasonable range
+
+        // Apply immediately to active playback
+        if (this.workletNode && this.state.isPlaying) {
+            const totalSpeed = this.state.params.speed * this.globalSpeed;
+            const tempoParam = this.workletNode.parameters.get('tempo');
+            if (tempoParam) {
+                tempoParam.setTargetAtTime(totalSpeed, this.audioContext?.currentTime || 0, 0.02);
             }
         }
     }
@@ -561,7 +575,7 @@ export class AudioEngine {
             // Combine pad pitch with global pitch offset
             const totalPitch = params.pitch + this.globalPitchOffset;
             const pitchRatio = totalPitch === 0 ? 1.0 : Math.pow(2, totalPitch / 12);
-            const tempo = params.speed;
+            const tempo = params.speed * this.globalSpeed;
 
             const tempoParam = this.workletNode.parameters.get('tempo');
             const pitchParam = this.workletNode.parameters.get('pitch');

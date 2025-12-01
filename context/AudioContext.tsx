@@ -64,6 +64,12 @@ interface AudioState {
     // Pads
     pads: Pad[];
     selectedPadId: string | null;
+
+    // Analysis State
+    detectedBpm: number | null;
+    detectedKey: string | null;
+    currentBpm: number | null;
+    isAnalyzing: boolean;
 }
 
 interface AudioContextType extends AudioState {
@@ -74,6 +80,7 @@ interface AudioContextType extends AudioState {
     setMasterVolume: (volume: number) => void;
     globalKeyShift: number;
     setGlobalKeyShift: (shift: number) => void;
+    setBpm: (bpm: number) => void;
 
     // Transport
     play: () => void;
@@ -107,6 +114,12 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+
+    // Analysis State
+    const [detectedBpm, setDetectedBpm] = useState<number | null>(null);
+    const [detectedKey, setDetectedKey] = useState<string | null>(null);
+    const [currentBpm, setCurrentBpm] = useState<number | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     // Load audio file on mount
     useEffect(() => {
@@ -185,6 +198,14 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     useEffect(() => {
         audioEngine.setGlobalPitchOffset(globalKeyShift);
     }, [globalKeyShift, audioEngine]);
+
+    const setBpm = (bpm: number) => {
+        setCurrentBpm(bpm);
+        if (detectedBpm) {
+            const speed = bpm / detectedBpm;
+            audioEngine.setGlobalSpeed(speed);
+        }
+    };
 
     const play = async () => {
         await audioEngine.play();
@@ -279,16 +300,80 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ));
     };
 
+    const performAnalysis = async (file: File) => {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+            // 1. Mix to Mono
+            const monoData = audioBuffer.getChannelData(0);
+
+            // 2. Downsample to 16kHz
+            const offlineCtx = new OfflineAudioContext(1, audioBuffer.duration * 16000, 16000);
+            const source = offlineCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(offlineCtx.destination);
+            source.start();
+            const resampledBuffer = await offlineCtx.startRendering();
+            const resampledData = resampledBuffer.getChannelData(0);
+
+            // 3. Send to Worker
+            const worker = new Worker(new URL('../src/workers/analysis.worker.js', import.meta.url));
+
+            worker.onmessage = (e) => {
+                const { type, payload } = e.data;
+                if (type === 'READY') {
+                    worker.postMessage({
+                        type: 'ANALYZE',
+                        payload: {
+                            pcm: resampledData,
+                            sampleRate: 16000
+                        }
+                    });
+                } else if (type === 'RESULT') {
+                    console.log('Analysis Result:', payload);
+                    setDetectedBpm(payload.bpm);
+                    setCurrentBpm(payload.bpm);
+                    setDetectedKey(`${payload.key} ${payload.scale}`);
+                    setIsAnalyzing(false);
+                    worker.terminate();
+                } else if (type === 'ERROR') {
+                    console.error('Analysis Error:', payload);
+                    setIsAnalyzing(false);
+                    worker.terminate();
+                }
+            };
+        } catch (error) {
+            console.error('Analysis failed:', error);
+            setIsAnalyzing(false);
+        }
+    };
+
     const loadFile = async (file: File) => {
         try {
+            setIsAnalyzing(true);
+            // Reset Analysis State
+            setDetectedBpm(null);
+            setDetectedKey(null);
+            setCurrentBpm(null);
+            audioEngine.setGlobalSpeed(1.0);
+            setGlobalKeyShift(0);
+
+            // Load for playback (Blocking for UI modal close if we want, but usually fast)
             await audioEngine.loadFromFile(file);
             const dur = audioEngine.getDuration();
             setDuration(dur);
             setCurrentTime(0);
             // Clear all pads when loading new audio
             setPads(INITIAL_PADS.map(p => ({ ...p, cuePoint: null })));
+
+            // Trigger Analysis (Non-blocking)
+            performAnalysis(file);
+
         } catch (error) {
             console.error('Failed to load audio file:', error);
+            setIsAnalyzing(false);
             throw error;
         }
     };
@@ -308,6 +393,11 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setMasterVolume,
         globalKeyShift,
         setGlobalKeyShift,
+        detectedBpm,
+        detectedKey,
+        currentBpm,
+        setBpm,
+        isAnalyzing,
 
         play,
         pause,
