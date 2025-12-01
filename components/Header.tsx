@@ -80,13 +80,12 @@ export const Header: React.FC = () => {
     startBpmRef.current = currentBpm;
     accumulatedYRef.current = 0;
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      accumulatedYRef.current -= ev.movementY;
-      // Sensitivity: 5px per BPM
-      const steps = Math.floor(accumulatedYRef.current / 5);
-      setBpm(Math.max(1, startBpmRef.current + steps));
-    };
-
+          const handleMouseMove = (ev: MouseEvent) => {
+            accumulatedYRef.current -= ev.movementY;
+            // Sensitivity: 10px per BPM (allowing for decimals)
+            const steps = accumulatedYRef.current / 10;
+            setBpm(Math.max(50, Math.min(250, startBpmRef.current + steps)));
+          };
     const handleMouseUp = () => {
       document.exitPointerLock();
       setIsDraggingBpm(false);
@@ -187,7 +186,7 @@ export const Header: React.FC = () => {
             title={currentBpm ? "Drag up/down to change BPM" : "Upload file to enable"}
           >
             <span className={`text-base font-mono ${isDraggingBpm ? 'text-primary' : (currentBpm ? 'text-gray-200' : 'text-gray-600')}`}>
-              {isAnalyzing ? '--' : (currentBpm ? currentBpm : '--')}
+              {isAnalyzing ? '--' : (currentBpm ? currentBpm.toFixed(2) : '--')}
             </span>
           </div>
         </div>
