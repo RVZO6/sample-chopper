@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useAudio } from '@/context/AudioContext';
 
-const KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-// const BASE_KEY_INDEX = 3; // D# - Removed default
+const KEYS_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const KEYS_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export const Header: React.FC = () => {
   const {
@@ -12,7 +12,8 @@ export const Header: React.FC = () => {
     loadFile,
     detectedBpm, detectedKey,
     currentBpm, setBpm,
-    isAnalyzing
+    isAnalyzing,
+    keyMode, detectedKeyIndex
   } = useAudio();
 
   const [isDraggingKey, setIsDraggingKey] = useState(false);
@@ -26,7 +27,7 @@ export const Header: React.FC = () => {
 
   const handleKeyDragStart = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!detectedKey) return; // Lock if no key detected
+    if (detectedKeyIndex === null) return; // Lock if no key detected
 
     const target = e.currentTarget as HTMLElement;
 
@@ -111,22 +112,16 @@ export const Header: React.FC = () => {
   };
 
   // Calculate display values
-  // Parse detected key to find base index
+  const keys = keyMode === 'sharp' ? KEYS_SHARP : KEYS_FLAT;
   let noteName = '--';
 
-  if (detectedKey) {
-    let baseIndex = 0; // Default to C if detected but unknown? Or just fail?
-    // detectedKey format: "C major", "F# minor", etc.
-    const keyPart = detectedKey.split(' ')[0];
-    const foundIndex = KEYS.indexOf(keyPart);
-    if (foundIndex !== -1) {
-      baseIndex = foundIndex;
-      const currentKeyIndex = ((baseIndex + globalKeyShift) % 12 + 12) % 12;
-      noteName = KEYS[currentKeyIndex];
-    }
+  if (detectedKeyIndex !== null) {
+    const currentKeyIndex = ((detectedKeyIndex + globalKeyShift) % 12 + 12) % 12;
+    noteName = keys[currentKeyIndex];
   }
+  
   const sign = globalKeyShift > 0 ? '+' : '';
-  const offsetText = detectedKey ? `${sign}${globalKeyShift}` : '-';
+  const offsetText = detectedKeyIndex !== null ? `${sign}${globalKeyShift}` : '-';
 
   // Use detected key if available and no shift, otherwise calculate
   // Actually, we want to show the RESULTING key.
@@ -166,11 +161,11 @@ export const Header: React.FC = () => {
           <div
             onMouseDown={handleKeyDragStart}
             className={`bg-background-dark rounded-sm w-20 h-8 px-2 flex items-center justify-between font-semibold shadow-ui-element-inset select-none transition-colors 
-              ${detectedKey ? 'cursor-ns-resize hover:text-white' : 'cursor-not-allowed opacity-50 text-gray-600'} 
+              ${detectedKeyIndex !== null ? 'cursor-ns-resize hover:text-white' : 'cursor-not-allowed opacity-50 text-gray-600'} 
               ${isDraggingKey ? 'text-primary' : ''}`}
-            title={detectedKey ? "Drag up/down to transpose" : "Upload file to enable"}
+            title={detectedKeyIndex !== null ? "Drag up/down to transpose" : "Upload file to enable"}
           >
-            <span className={`text-base text-left font-mono ${isDraggingKey ? 'text-primary' : (detectedKey ? 'text-gray-200' : 'text-gray-600')}`}>{noteName}</span>
+            <span className={`text-base text-left font-mono ${isDraggingKey ? 'text-primary' : (detectedKeyIndex !== null ? 'text-gray-200' : 'text-gray-600')}`}>{noteName}</span>
             <span className={`text-xs text-right font-mono ${isDraggingKey ? 'text-primary/70' : 'text-gray-500'}`}>{offsetText}</span>
           </div>
         </div>

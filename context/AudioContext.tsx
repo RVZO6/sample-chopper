@@ -54,6 +54,14 @@ const INITIAL_PADS: Pad[] = [
     { id: 'pad-20', label: 'P', key: 'KeyP', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
 ];
 
+const flatToSharpMap: { [key: string]: string } = {
+    'Db': 'C#',
+    'Eb': 'D#',
+    'Gb': 'F#',
+    'Ab': 'G#',
+    'Bb': 'A#',
+};
+
 interface AudioState {
     // Engine State
     currentTime: number;
@@ -70,6 +78,8 @@ interface AudioState {
     detectedKey: string | null;
     currentBpm: number | null;
     isAnalyzing: boolean;
+    keyMode: 'sharp' | 'flat';
+    detectedKeyIndex: number | null;
 }
 
 interface AudioContextType extends AudioState {
@@ -81,6 +91,8 @@ interface AudioContextType extends AudioState {
     globalKeyShift: number;
     setGlobalKeyShift: (shift: number) => void;
     setBpm: (bpm: number) => void;
+    keyMode: 'sharp' | 'flat';
+    detectedKeyIndex: number | null;
 
     // Transport
     play: () => void;
@@ -120,6 +132,8 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const [detectedKey, setDetectedKey] = useState<string | null>(null);
     const [currentBpm, setCurrentBpm] = useState<number | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [keyMode, setKeyMode] = useState<'sharp' | 'flat'>('sharp');
+    const [detectedKeyIndex, setDetectedKeyIndex] = useState<number | null>(null);
 
     // Load audio file on mount
     useEffect(() => {
@@ -335,7 +349,25 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     console.log('Analysis Result:', payload);
                     setDetectedBpm(payload.bpm);
                     setCurrentBpm(payload.bpm);
-                    setDetectedKey(`${payload.key} ${payload.scale}`);
+
+                    const { key, scale } = payload;
+                    const keyName = key as string;
+
+                    // Determine mode
+                    const mode = keyName.includes('b') ? 'flat' : 'sharp';
+                    setKeyMode(mode);
+
+                    // Normalize to find index
+                    const normalizedKey = flatToSharpMap[keyName] || keyName;
+                    const keyIndex = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(normalizedKey);
+
+                    if (keyIndex !== -1) {
+                        setDetectedKeyIndex(keyIndex);
+                    } else {
+                        setDetectedKeyIndex(null);
+                    }
+
+                    setDetectedKey(`${key} ${scale}`);
                     setIsAnalyzing(false);
                     worker.terminate();
                 } else if (type === 'ERROR') {
@@ -398,6 +430,8 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         currentBpm,
         setBpm,
         isAnalyzing,
+        keyMode,
+        detectedKeyIndex,
 
         play,
         pause,
