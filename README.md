@@ -1,20 +1,44 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Sample Chopper Pro
 
-# Run and deploy your AI Studio app
+A web-based audio sample chopper with real-time pitch and time manipulation.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/10mRsWNoY-RUgpHgpM6VJs7G7RXHbW2qu
+- 🎹 **20 Pad Grid** - Trigger samples with keyboard or mouse
+- 🎛️ **Real-time Effects** - Independent pitch shift, time stretch, reverse
+- 🎚️ **ADSR Envelope** - Attack and release controls
+- 🎵 **Global Key Control** - Transpose entire project on the fly
+- 🌊 **Waveform Display** - Interactive waveform with zoom and seek
 
-## Run Locally
+## Tech Stack
 
-**Prerequisites:**  Node.js
+- **React 19** with TypeScript
+- **Vite 7** for blazing-fast builds
+- **Tailwind CSS v4** for styling
+- **Rubberband WASM** for high-quality audio stretching
+- **Web Audio API** with AudioWorklets
 
+## Getting Started
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Install dependencies:
+```bash
+pnpm install
+```
+
+Run development server:
+```bash
+pnpm dev
+```
+
+Build for production:
+```bash
+pnpm build
+```
+
+## Usage
+
+1. Click the upload button to load an audio file
+2. Click on the waveform to set cue points for each pad
+3. Trigger pads with keyboard (Q-P, A-;, Z-/) or click them
+4. Adjust pitch, time, and envelope for each pad
+5. Use global key control to transpose everything
