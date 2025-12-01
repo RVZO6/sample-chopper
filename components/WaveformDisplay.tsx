@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAudio } from '../context/AudioContext';
+import { useAudio } from '@/context/AudioContext';
 
 export const WaveformDisplay: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -358,7 +358,7 @@ export const WaveformDisplay: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="h-64 bg-surface-dark rounded relative shadow-ui-element-inset overflow-hidden border border-black/50"
+      className="h-64 bg-surface-dark rounded-sm relative shadow-ui-element-inset overflow-hidden border border-black/50"
       onMouseDown={handleMouseDown}
       onMouseMove={draggingFlagId ? handleFlagMouseMove : handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -368,7 +368,7 @@ export const WaveformDisplay: React.FC = () => {
       <canvas ref={canvasRef} className="block w-full h-full" />
 
       {/* Zoom Controls Overlay */}
-      <div className="absolute top-3 right-3 flex flex-col bg-surface-dark/80 backdrop-blur-sm rounded border border-white/10 shadow-lg overflow-hidden">
+      <div className="absolute top-3 right-3 flex flex-col bg-surface-dark/80 backdrop-blur-xs rounded-sm border border-white/10 shadow-lg overflow-hidden">
         <button
           className="p-1.5 text-gray-300 hover:text-white hover:bg-white/10 rounded-t transition-colors active:bg-white/20"
           onClick={() => setZoom(z => Math.min(1000, z * 1.4))}

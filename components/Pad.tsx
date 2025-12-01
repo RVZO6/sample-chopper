@@ -19,7 +19,7 @@ export const Pad: React.FC<PadProps> = ({
   onMouseLeave,
   onContextMenu
 }) => {
-  const baseClasses = "rounded-md relative transform transition-all duration-75 flex items-center justify-center h-full w-full min-h-[4rem]";
+  const baseClasses = "rounded-md relative transform transition-all duration-75 flex items-center justify-center h-full w-full min-h-16";
 
   // Different styling for empty vs active pads
   const activeStyle = "shadow-pad-raised active:shadow-pad-pressed active:translate-y-px cursor-pointer hover:brightness-110";
@@ -36,13 +36,13 @@ export const Pad: React.FC<PadProps> = ({
       onMouseLeave={onMouseLeave}
       onContextMenu={onContextMenu}
     >
-      <span className="absolute bottom-1 right-2 text-xs font-bold px-1.5 py-0.5 rounded text-white bg-black/30">
+      <span className="absolute bottom-1 right-2 text-xs font-bold px-1.5 py-0.5 rounded-sm text-white bg-black/30">
         {label}
       </span>
 
       {/* Visual shine for active pads */}
       {!isEmpty && (
-        <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-transparent to-white/10 pointer-events-none"></div>
+        <div className="absolute inset-0 rounded-md bg-linear-to-tr from-transparent to-white/10 pointer-events-none"></div>
       )}
     </button>
   );

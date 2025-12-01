@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Pad } from './Pad';
-import { useAudio } from '../context/AudioContext';
+import { useAudio } from '@/context/AudioContext';
 
 export const PadGrid: React.FC = () => {
   const { pads, currentTime, triggerPad, stopPad, setPadCuePoint, clearPad, playMode, audioEngine } = useAudio();
@@ -89,7 +89,7 @@ export const PadGrid: React.FC = () => {
   };
 
   return (
-    <div className="flex-grow grid grid-cols-5 grid-rows-4 gap-3 min-h-[300px]">
+    <div className="grow grid grid-cols-5 grid-rows-4 gap-3 min-h-[300px]">
       {pads.map((pad) => (
         <Pad
           key={pad.id}

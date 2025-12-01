@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useAudio } from '../context/AudioContext';
+import { useAudio } from '@/context/AudioContext';
 
 const KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const BASE_KEY_INDEX = 3; // D#
@@ -76,11 +76,11 @@ export const Header: React.FC = () => {
   const offsetText = `${sign}${globalKeyShift}`;
 
   return (
-    <header className="bg-surface-dark border-b border-black/50 p-2 flex items-center justify-between text-sm flex-shrink-0 z-10">
+    <header className="bg-surface-dark border-b border-black/50 p-2 flex items-center justify-between text-sm shrink-0 z-10">
       <div className="flex items-center gap-3">
         <button
           onClick={() => setShowUploadModal(true)}
-          className="p-2 rounded hover:bg-surface-light transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
+          className="p-2 rounded-sm hover:bg-surface-light transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
         >
           <span className="material-symbols-outlined text-lg">upload</span>
         </button>
@@ -92,7 +92,7 @@ export const Header: React.FC = () => {
           <span className="text-xs text-gray-400 select-none">KEY</span>
           <div
             onMouseDown={handleKeyDragStart}
-            className={`bg-background-dark rounded w-20 h-8 px-2 flex items-center justify-between font-semibold shadow-ui-element-inset cursor-ns-resize select-none transition-colors ${isDraggingKey ? 'text-primary' : ''}`}
+            className={`bg-background-dark rounded-sm w-20 h-8 px-2 flex items-center justify-between font-semibold shadow-ui-element-inset cursor-ns-resize select-none transition-colors ${isDraggingKey ? 'text-primary' : ''}`}
             title="Drag up/down to transpose"
           >
             <span className={`text-base text-left font-mono ${isDraggingKey ? 'text-primary' : 'text-gray-200'}`}>{noteName}</span>
@@ -101,11 +101,11 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Play Mode Toggle (Gate vs Trigger) */}
-        <div className="flex items-center gap-1 bg-background-dark rounded p-1 shadow-ui-element-inset">
+        <div className="flex items-center gap-1 bg-background-dark rounded-sm p-1 shadow-ui-element-inset">
           {/* Gate Mode: Arrow with block end ->| (keyboard_tab) */}
           <button
             onClick={() => setPlayMode('gate')}
-            className={`p-1 rounded transition-all flex items-center justify-center ${playMode === 'gate' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
+            className={`p-1 rounded-sm transition-all flex items-center justify-center ${playMode === 'gate' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
             title="Gate Mode"
           >
             <span className="material-symbols-outlined text-xl">keyboard_tab</span>
@@ -114,7 +114,7 @@ export const Header: React.FC = () => {
           {/* Trigger Mode: Arrow with arrow end -> (arrow_right_alt) */}
           <button
             onClick={() => setPlayMode('trigger')}
-            className={`p-1 rounded transition-all flex items-center justify-center ${playMode === 'trigger' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
+            className={`p-1 rounded-sm transition-all flex items-center justify-center ${playMode === 'trigger' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
             title="Trigger Mode"
           >
             <span className="material-symbols-outlined text-xl">arrow_right_alt</span>
@@ -136,7 +136,7 @@ export const Header: React.FC = () => {
       </div>
 
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
           <div className="bg-surface-dark rounded-lg border border-black/50 shadow-2xl p-6 w-80" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-4 text-white">Upload Audio</h2>
 
@@ -150,7 +150,7 @@ export const Header: React.FC = () => {
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-300 hover:text-white mb-3"
+              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded-sm transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-300 hover:text-white mb-3"
             >
               <span className="material-symbols-outlined inline-block mr-2 text-base">folder_open</span>
               Browse Files
@@ -158,7 +158,7 @@ export const Header: React.FC = () => {
 
             <button
               onClick={() => setShowUploadModal(false)}
-              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
+              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded-sm transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
             >
               Cancel
             </button>

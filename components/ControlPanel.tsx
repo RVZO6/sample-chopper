@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Knob } from './Knob';
-import { useAudio } from '../context/AudioContext';
+import { useAudio } from '@/context/AudioContext';
 
 export const ControlPanel: React.FC = () => {
   const {
@@ -48,7 +48,7 @@ export const ControlPanel: React.FC = () => {
   };
 
   return (
-    <div className="flex-shrink-0 bg-surface-dark rounded p-4 flex items-center justify-center gap-4 md:gap-8 shadow-ui-element-inset overflow-x-auto">
+    <div className="shrink-0 bg-surface-dark rounded-sm p-4 flex items-center justify-center gap-4 md:gap-8 shadow-ui-element-inset overflow-x-auto">
       {/* Envelope Section */}
       <div className="flex items-center gap-6">
         <Knob
@@ -69,7 +69,7 @@ export const ControlPanel: React.FC = () => {
       <div className="flex items-center gap-6 md:gap-8">
         <div className="flex flex-col items-center gap-2">
           <div
-            className={`bg-background-dark rounded p-2 px-3 text-center cursor-ns-resize shadow-ui-element-inset transition-colors select-none w-24 ${isDraggingTime ? 'text-primary' : 'text-gray-300 hover:text-white'}`}
+            className={`bg-background-dark rounded-sm p-2 px-3 text-center cursor-ns-resize shadow-ui-element-inset transition-colors select-none w-24 ${isDraggingTime ? 'text-primary' : 'text-gray-300 hover:text-white'}`}
             onMouseDown={handleTimeStretchDrag}
           >
             <span className="font-mono text-lg font-bold">{timeStretch}%</span>
@@ -81,7 +81,7 @@ export const ControlPanel: React.FC = () => {
           <div className="flex items-center gap-1">
             <button
               onClick={() => updateSelectedPadParams({ keyShift: keyShift - 1 })}
-              className="w-8 h-8 bg-surface-light rounded hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed flex items-center justify-center text-gray-300 active:text-white transition-all"
+              className="w-8 h-8 bg-surface-light rounded-sm hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed flex items-center justify-center text-gray-300 active:text-white transition-all"
             >
               <span className="material-symbols-outlined text-sm">remove</span>
             </button>
@@ -91,7 +91,7 @@ export const ControlPanel: React.FC = () => {
             </div>
             <button
               onClick={() => updateSelectedPadParams({ keyShift: keyShift + 1 })}
-              className="w-8 h-8 bg-surface-light rounded hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed flex items-center justify-center text-gray-300 active:text-white transition-all"
+              className="w-8 h-8 bg-surface-light rounded-sm hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed flex items-center justify-center text-gray-300 active:text-white transition-all"
             >
               <span className="material-symbols-outlined text-sm">add</span>
             </button>
