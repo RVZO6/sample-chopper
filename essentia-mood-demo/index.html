@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BPM & Key Detection with Essentia.js</title>
+  </head>
+  <body>
+    <header>
+      <h1>BPM & Key Detection</h1>
+      <p>Audio analysis powered by <a href="https://mtg.github.io/essentia.js/" target="_blank">Essentia.js</a></p>
+    </header>
+
+    <main id="app">
+      <div id="upload-section">
+        <div id="drop-area">
+          <span>Drop audio file here or click to upload</span>
+        </div>
+      </div>
+
+      <div id="waveform-container" class="hidden">
+        <div id="waveform"></div>
+        <div class="controls">
+          <button id="play-btn" class="btn">▶ Play / Pause</button>
+        </div>
+      </div>
+
+      <div id="results-section" class="hidden">
+        <div id="loader" class="loader hidden">
+          <div class="spinner"></div>
+          <p>Analyzing audio...</p>
+        </div>
+        
+        <div id="results" class="results-grid">
+          <div class="result-card">
+            <div class="label">BPM</div>
+            <div id="bpm-value" class="value">--</div>
+          </div>
+          <div class="result-card">
+            <div class="label">Key</div>
+            <div id="key-value" class="value">--</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
