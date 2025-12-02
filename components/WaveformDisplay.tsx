@@ -78,14 +78,91 @@ export const WaveformDisplay: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, play, pause]);
 
-  // Load peaks when audio is ready
+  // Load peaks when audio is ready - optimized peak generation
   useEffect(() => {
     if (duration > 0) {
-      const width = Math.ceil(duration * 200); // 200 peaks per second
-      const p = audioEngine.getPeaks(width);
-      setPeaks(p);
+      console.log('[WaveformDisplay] Starting optimized peak generation, duration:', duration);
+      const loadPeaks = async () => {
+        try {
+          // Get the audio buffer from our AudioEngine
+          const audioBuffer = audioEngine.getAudioBuffer();
+          console.log('[WaveformDisplay] Got audio buffer:', audioBuffer ? `${audioBuffer.duration}s, ${audioBuffer.sampleRate}Hz` : 'null');
+
+          if (!audioBuffer) {
+            console.warn('[WaveformDisplay] No audio buffer available for peak generation');
+            return;
+          }
+
+          // Target number of peaks (200 per second like before)
+          const targetPeakCount = Math.ceil(duration * 200);
+          console.log('[WaveformDisplay] Target peak count:', targetPeakCount);
+
+          // Use asynchronous peak calculation to avoid UI blocking
+          const peaks = await calculatePeaksAsync(audioBuffer, targetPeakCount);
+          console.log('[WaveformDisplay] Peaks calculated:', peaks.length);
+
+          setPeaks(peaks);
+          console.log('[WaveformDisplay] Peaks set successfully!');
+        } catch (error) {
+          console.error('[WaveformDisplay] Error generating peaks:', error);
+          // Fallback to synchronous method
+          const width = Math.ceil(duration * 200);
+          const p = audioEngine.getPeaks(width);
+          console.log('[WaveformDisplay] Fallback peaks generated:', p.length);
+          setPeaks(p);
+        }
+      };
+
+      loadPeaks();
     }
   }, [duration, audioEngine]);
+
+  // Optimized peak calculation using chunked async processing
+  async function calculatePeaksAsync(audioBuffer: AudioBuffer, targetPeakCount: number): Promise<number[]> {
+    return new Promise((resolve) => {
+      // Use requestIdleCallback or setTimeout to process in chunks
+      const channelData = audioBuffer.getChannelData(0); // Mono
+      const sampleRate = audioBuffer.sampleRate;
+      const totalSamples = channelData.length;
+
+      // Calculate samples per peak
+      const samplesPerPeak = Math.floor(totalSamples / targetPeakCount);
+
+      const peaks: number[] = new Array(targetPeakCount);
+      const chunkSize = 10000; // Process 10000 peaks at a time
+      let currentIndex = 0;
+
+      const processChunk = () => {
+        const endIndex = Math.min(currentIndex + chunkSize, targetPeakCount);
+
+        for (let i = currentIndex; i < endIndex; i++) {
+          const start = i * samplesPerPeak;
+          const end = Math.min(start + samplesPerPeak, totalSamples);
+
+          let max = 0;
+          for (let j = start; j < end; j++) {
+            const abs = Math.abs(channelData[j]);
+            if (abs > max) max = abs;
+          }
+
+          peaks[i] = max;
+        }
+
+        currentIndex = endIndex;
+
+        if (currentIndex < targetPeakCount) {
+          // Still more to process, schedule next chunk
+          setTimeout(processChunk, 0);
+        } else {
+          // Done!
+          resolve(peaks);
+        }
+      };
+
+      // Start processing
+      processChunk();
+    });
+  }
 
   // Draw Loop
   useEffect(() => {

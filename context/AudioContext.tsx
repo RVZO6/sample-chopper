@@ -316,37 +316,38 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const performAnalysis = async (file: File) => {
         try {
+            console.log('[Analysis] Starting audio analysis...');
             const arrayBuffer = await file.arrayBuffer();
+
+            // Decode on main thread (async) - this is the only way without extra libs
+            // We avoid OfflineAudioContext resampling here to prevent blocking
             const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            console.log('[Analysis] Audio decoded, duration:', audioBuffer.duration);
 
-            // 1. Mix to Mono
-            const monoData = audioBuffer.getChannelData(0);
+            // Get mono data
+            const pcmData = audioBuffer.getChannelData(0);
+            const sampleRate = audioBuffer.sampleRate;
 
-            // 2. Downsample to 16kHz
-            const offlineCtx = new OfflineAudioContext(1, audioBuffer.duration * 16000, 16000);
-            const source = offlineCtx.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(offlineCtx.destination);
-            source.start();
-            const resampledBuffer = await offlineCtx.startRendering();
-            const resampledData = resampledBuffer.getChannelData(0);
-
-            // 3. Send to Worker
+            // Create worker
             const worker = new Worker(new URL('../src/workers/essentia.worker.js', import.meta.url));
 
             worker.onmessage = (e) => {
                 const { type, payload } = e.data;
+                console.log('[Analysis] Worker message:', type);
+
                 if (type === 'READY') {
+                    console.log('[Analysis] Worker ready, sending PCM data...');
+                    // Transfer the PCM data to worker (zero-copy)
                     worker.postMessage({
                         type: 'ANALYZE',
                         payload: {
-                            pcm: resampledData,
-                            sampleRate: 16000
+                            pcm: pcmData,
+                            originalSampleRate: sampleRate
                         }
-                    });
+                    }, [pcmData.buffer]); // Transfer ownership
                 } else if (type === 'RESULT') {
-                    console.log('Analysis Result:', payload);
+                    console.log('[Analysis] Analysis complete!', payload);
                     setDetectedBpm(payload.bpm);
                     setCurrentBpm(payload.bpm);
 
@@ -371,13 +372,13 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     setIsAnalyzing(false);
                     worker.terminate();
                 } else if (type === 'ERROR') {
-                    console.error('Analysis Error:', payload);
+                    console.error('[Analysis] Worker error:', payload);
                     setIsAnalyzing(false);
                     worker.terminate();
                 }
             };
         } catch (error) {
-            console.error('Analysis failed:', error);
+            console.error('[Analysis] Fatal error:', error);
             setIsAnalyzing(false);
         }
     };

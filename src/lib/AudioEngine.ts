@@ -659,4 +659,8 @@ export class AudioEngine {
 
         return peaks;
     }
+
+    getAudioBuffer(): AudioBuffer | null {
+        return this.audioBuffer;
+    }
 }

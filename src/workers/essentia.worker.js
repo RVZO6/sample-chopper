@@ -23,17 +23,33 @@ self.onmessage = function (e) {
     if (type === 'ANALYZE') {
         if (!essentia) {
             console.error('Essentia not ready');
+            self.postMessage({ type: 'ERROR', payload: 'Essentia not initialized' });
             return;
         }
 
         try {
-            const { pcm, sampleRate } = payload;
+            const { pcm, originalSampleRate } = payload;
+            console.log('[Worker] Received PCM data, samples:', pcm.length, 'Rate:', originalSampleRate);
 
             // Convert Float32Array to Essentia Vector
-            const signal = essentia.arrayToVector(pcm);
+            console.log('[Worker] Converting to vector...');
+            let signal;
+
+            if (originalSampleRate !== 16000) {
+                console.log('[Worker] Resampling to 16kHz using JS linear interpolation...');
+                // Use custom JS resampler to avoid WASM memory/exception issues
+                const resampledPcm = resampleLinear(pcm, originalSampleRate, 16000);
+
+                // Convert to vector
+                signal = essentia.arrayToVector(resampledPcm);
+                console.log('[Worker] Resampling complete, new length:', resampledPcm.length);
+            } else {
+                signal = essentia.arrayToVector(pcm);
+            }
 
             // 1. Key Detection
             // Parameters from integration guide (EXACTLY as specified)
+            console.log('[Worker] Running KeyExtractor...');
             const keyData = essentia.KeyExtractor(
                 signal,
                 true,      // averageDetuningCorrection
@@ -45,7 +61,7 @@ self.onmessage = function (e) {
                 25,        // spectralPeaksMax
                 0.2,       // spectralPeaksWeight
                 'bgate',   // tuningFrequency
-                16000,     // sampleRate
+                16000,     // sampleRate (now 16k)
                 0.0001,    // spectralPeaksMinMag
                 440,       // referenceFrequency
                 'cosine',  // profileType
@@ -54,6 +70,7 @@ self.onmessage = function (e) {
 
             // 2. BPM Detection
             // Parameters from integration guide (EXACTLY as specified)
+            console.log('[Worker] Running PercivalBpmEstimator...');
             const bpmData = essentia.PercivalBpmEstimator(
                 signal,
                 1024,    // frameSize
@@ -68,6 +85,7 @@ self.onmessage = function (e) {
             // Clean up vector to free memory
             signal.delete();
 
+            console.log('[Worker] Analysis complete!');
             self.postMessage({
                 type: 'RESULT',
                 payload: {
@@ -78,8 +96,33 @@ self.onmessage = function (e) {
             });
 
         } catch (error) {
-            console.error('Analysis error:', error);
+            console.error('[Worker] Analysis error:', error);
             self.postMessage({ type: 'ERROR', payload: error.message });
         }
     }
 };
+
+// Simple Linear Interpolation Resampler
+function resampleLinear(buffer, sampleRate, targetSampleRate) {
+    if (sampleRate === targetSampleRate) return buffer;
+
+    const ratio = sampleRate / targetSampleRate;
+    const newLength = Math.round(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+
+    for (let i = 0; i < newLength; i++) {
+        const position = i * ratio;
+        const index = Math.floor(position);
+        const fraction = position - index;
+
+        if (index + 1 < buffer.length) {
+            const a = buffer[index];
+            const b = buffer[index + 1];
+            result[i] = a + (b - a) * fraction;
+        } else {
+            result[i] = buffer[index];
+        }
+    }
+
+    return result;
+}
