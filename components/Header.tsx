@@ -40,19 +40,19 @@ export const Header: React.FC = () => {
     setStatusMessage('Resolving URL...');
 
     try {
-      const audioUrl = await YouTubeService.getBestAudioUrl(videoId);
-
-      setStatusMessage('Starting download...');
+      const result = await YouTubeService.getBestAudioUrl(videoId);
+      console.log(`🎵 Using: ${result.source} (${result.apiType})`);
+      setStatusMessage(`Source: ${result.source} - Starting download...`);
 
       // Try to fetch with a CORS proxy if direct fetch fails
       // We'll try direct first, then a public proxy
       let response;
       try {
-        response = await fetch(audioUrl);
+        response = await fetch(result.url);
       } catch (e) {
         console.warn("Direct fetch failed, trying proxy...", e);
         // Fallback to a CORS proxy (using corsproxy.io for demo purposes)
-        response = await fetch(`https://corsproxy.io/?${encodeURIComponent(audioUrl)}`);
+        response = await fetch(`https://corsproxy.io/?${encodeURIComponent(result.url)}`);
       }
 
       if (!response.ok) throw new Error(`Failed to fetch audio: ${response.statusText}`);

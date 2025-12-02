@@ -9,6 +9,12 @@ export interface AudioStream {
     type?: string; // For Piped compatibility
 }
 
+export interface AudioFetchResult {
+    url: string;
+    source: string;
+    apiType: APIType;
+}
+
 interface PipedStream {
     url: string;
     format: string;
@@ -64,7 +70,7 @@ export class YouTubeService {
         return sorted[0].url;
     }
 
-    static async getBestAudioUrl(videoId: string): Promise<string> {
+    static async getBestAudioUrl(videoId: string): Promise<AudioFetchResult> {
         const errors: string[] = [];
 
         for (const source of YOUTUBE_API_SOURCES) {
@@ -91,8 +97,12 @@ export class YouTubeService {
                     audioUrl = await this.handleInvidiousResponse(response);
                 }
 
-                console.log(`Successfully fetched audio URL from ${source.name}`);
-                return audioUrl;
+                console.log(`✓ Successfully fetched audio URL from ${source.name}`);
+                return {
+                    url: audioUrl,
+                    source: source.name,
+                    apiType: source.type
+                };
 
             } catch (error) {
                 const msg = `Failed to fetch from ${source.name}: ${error}`;
