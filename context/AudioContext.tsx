@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { AudioEngine, PadParams as EnginePadParams } from '../lib/AudioEngine';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { AudioEngine, PadParams as EnginePadParams } from '../src/lib/AudioEngine';
 
 export interface PadParams {
     attack: number;
@@ -333,7 +333,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const resampledData = resampledBuffer.getChannelData(0);
 
             // 3. Send to Worker
-            const worker = new Worker(new URL('../src/workers/analysis.worker.js', import.meta.url));
+            const worker = new Worker(new URL('../src/workers/essentia.worker.js', import.meta.url));
 
             worker.onmessage = (e) => {
                 const { type, payload } = e.data;

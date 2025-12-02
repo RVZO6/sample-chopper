@@ -1,3 +1,4 @@
+import processorUrl from '../workers/rubberband.worklet.js?worker&url';
 export interface PadParams {
     speed: number;      // playback rate (0.5 to 2.0 recommended)
     pitch: number;      // pitch in semitones (-12 to +12)
@@ -49,6 +50,8 @@ export class AudioEngine {
     // Callbacks
     private _onStop: (() => void) | null = null;
     private updateInterval: number | null = null;
+    private lastUpdateTime: number = 0;
+    private accumulatedPosition: number = 0;
 
     constructor() {
         // Initialize AudioContext
@@ -104,10 +107,10 @@ export class AudioEngine {
             if (!this.audioContext) return;
 
             try {
-                await this.audioContext.audioWorklet.addModule('rubberband-processor.js');
+                await this.audioContext.audioWorklet.addModule(processorUrl);
 
                 // Fetch WASM file
-                const response = await fetch('rubberband.wasm');
+                const response = await fetch('/rubberband/rubberband.wasm');
                 if (!response.ok) {
                     throw new Error(`Failed to load rubberband.wasm: ${response.statusText}`);
                 }
@@ -247,6 +250,10 @@ export class AudioEngine {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
         }
+
+        // Reset position tracking
+        this.lastUpdateTime = 0;
+        this.accumulatedPosition = 0;
     }
 
     private _startTimeUpdate() {
@@ -295,6 +302,10 @@ export class AudioEngine {
             this.state.cuePoint = 0;
         }
 
+        // Reset position tracking
+        this.lastUpdateTime = 0;
+        this.accumulatedPosition = 0;
+
         // Start playback
         await this._startPlayback(this.globalOffset, duration, this.state.params);
     }
@@ -332,6 +343,10 @@ export class AudioEngine {
         this.state.mode = 'global';
         this.state.params = { speed: 1.0, pitch: 0, reverse: false, attack: 0, release: 0.1, volume: 1.0 };
 
+        // Reset position tracking
+        this.lastUpdateTime = 0;
+        this.accumulatedPosition = 0;
+
         if (wasPlaying) {
             this.play();
         }
@@ -342,10 +357,38 @@ export class AudioEngine {
             return Math.max(0, Math.min(this.getDuration(), this.globalOffset));
         }
 
-        // Simple calculation: elapsed time * speed (pitch doesn't affect waveform position)
+        // Track position incrementally to handle live speed changes
         const now = this.audioContext.currentTime;
+
+        // Initialize on first call after play starts
+        if (this.lastUpdateTime === 0) {
+            this.lastUpdateTime = this.state.startTime;
+            if (this.state.mode === 'pad') {
+                this.accumulatedPosition = this.state.cuePoint;
+            } else {
+                this.accumulatedPosition = this.globalOffset;
+            }
+        }
+
+        // Calculate how much time has passed since last update
+        const timeDelta = now - this.lastUpdateTime;
+
+        // Calculate effective speed (pad speed * global speed)
+        const effectiveSpeed = this.state.params.speed * this.globalSpeed;
+
+        // Update accumulated position based on current speed
+        if (this.state.params.reverse) {
+            this.accumulatedPosition -= timeDelta * effectiveSpeed;
+        } else {
+            this.accumulatedPosition += timeDelta * effectiveSpeed;
+        }
+
+        // Update last update time
+        this.lastUpdateTime = now;
+
+        // Calculate elapsed in original time for end detection
         const elapsed = now - this.state.startTime;
-        const playbackElapsed = elapsed * this.state.params.speed;
+        const playbackElapsed = elapsed * effectiveSpeed;
 
         // Check if playback finished
         if (playbackElapsed >= this.state.duration - 0.01) {
@@ -353,7 +396,7 @@ export class AudioEngine {
             this._stopPlayback();
             // Return final position
             if (this.state.params.reverse) {
-                return 0; // Or cuePoint - duration?
+                return 0;
             } else {
                 if (this.state.mode === 'pad') {
                     return Math.min(this.getDuration(), this.state.cuePoint + this.state.duration);
@@ -365,24 +408,8 @@ export class AudioEngine {
             if (this._onStop) this._onStop();
         }
 
-        // Calculate current position based on playback direction and mode
-        let position: number;
-        if (this.state.params.reverse) {
-            // Playing backwards: start at cuePoint, go to 0
-            position = this.state.cuePoint - playbackElapsed;
-        } else {
-            // Playing forward
-            if (this.state.mode === 'pad') {
-                // Pad mode: start at cuePoint, go to end
-                position = this.state.cuePoint + playbackElapsed;
-            } else {
-                // Global mode: start at globalOffset, go to end
-                position = this.globalOffset + playbackElapsed;
-            }
-        }
-
         // Always clamp to valid range
-        return Math.max(0, Math.min(this.getDuration(), position));
+        return Math.max(0, Math.min(this.getDuration(), this.accumulatedPosition));
     }
 
     getDuration(): number {
@@ -438,6 +465,10 @@ export class AudioEngine {
             this.state.isPlaying = false;
             return;
         }
+
+        // Reset position tracking
+        this.lastUpdateTime = 0;
+        this.accumulatedPosition = 0;
 
         // Start playback
         await this._startPlayback(cuePoint, duration, params);
@@ -518,7 +549,15 @@ export class AudioEngine {
                             resolve();
                         }
                     };
-                    this.workletNode.port.onmessage = handler;
+                    this.workletNode.port.onmessage = (event) => {
+                        if (event.data.type === 'ready') {
+                            handler(event);
+                        } else if (event.data.type === 'complete') {
+                            this.state.isPlaying = false;
+                            this._stopPlayback();
+                            if (this._onStop) this._onStop();
+                        }
+                    };
                 });
 
                 // If we just created the node, we need to send the buffer if we have it
