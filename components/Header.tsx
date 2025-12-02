@@ -40,7 +40,7 @@ export const Header: React.FC = () => {
     setStatusMessage('Resolving URL...');
 
     try {
-      const result = await YouTubeService.getBestAudioUrl(videoId);
+      const result = await YouTubeService.getBestAudioUrl(videoId, (msg) => setStatusMessage(msg));
       console.log(`🎵 Using: ${result.source} (${result.apiType})`);
       setStatusMessage(`${result.source} - Starting download...`);
 
@@ -75,7 +75,8 @@ export const Header: React.FC = () => {
 
         if (total) {
           setDownloadProgress((loaded / total) * 100);
-          setStatusMessage(`${result.source} - Downloading ${Math.round((loaded / total) * 100)}%`);
+          // Don't show percentage in text, it's already in the progress bar
+          setStatusMessage(`${result.source} - Downloading...`);
         } else {
           setStatusMessage(`${result.source} - Downloading ${(loaded / 1024 / 1024).toFixed(2)} MB`);
         }
@@ -302,38 +303,57 @@ export const Header: React.FC = () => {
       </div>
 
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
-          <div className="bg-surface-dark rounded-lg border border-black/50 shadow-2xl p-6 w-80" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 border-b border-gray-700 pb-4">
-              <p className="text-xs text-gray-400 mb-2">Or paste YouTube URL:</p>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  placeholder="https://youtube.com/..."
-                  className="flex-1 bg-background-dark border border-gray-700 rounded-sm px-2 py-1 text-sm text-white focus:border-primary outline-none"
-                  onKeyDown={(e) => e.key === 'Enter' && handleYoutubeLoad()}
-                  disabled={isLoadingYoutube}
-                />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
+          <div
+            className="bg-surface-dark rounded-xl shadow-pad-raised p-6 w-[400px] transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">add_circle</span>
+              Import Audio
+            </h2>
+
+            {/* YouTube Section */}
+            <div className="mb-6">
+              <label className="block text-[10px] text-gray-400 mb-2 uppercase tracking-wider font-bold">From YouTube</label>
+              <div className="flex gap-2 mb-3">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <span className="material-symbols-outlined text-gray-500 text-lg">link</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    placeholder="Paste YouTube URL..."
+                    className="w-full bg-background-dark rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-gray-600 shadow-ui-element-inset"
+                    onKeyDown={(e) => e.key === 'Enter' && handleYoutubeLoad()}
+                    disabled={isLoadingYoutube}
+                  />
+                </div>
                 <button
                   onClick={handleYoutubeLoad}
                   disabled={isLoadingYoutube || !youtubeUrl}
-                  className="bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-3 rounded-sm transition-colors text-xs uppercase"
+                  className="bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 rounded-lg transition-all shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
                 >
-                  {isLoadingYoutube ? '...' : 'Go'}
+                  {isLoadingYoutube ? (
+                    <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-lg">download</span>
+                  )}
                 </button>
               </div>
 
+              {/* Progress Bar */}
               {isLoadingYoutube && (
-                <div className="w-full">
-                  <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                    <span>{statusMessage}</span>
-                    <span>{downloadProgress > 0 ? `${Math.round(downloadProgress)}%` : ''}</span>
+                <div className="bg-background-dark rounded-lg p-3 shadow-ui-element-inset">
+                  <div className="flex justify-between text-[10px] text-gray-300 mb-2 font-medium">
+                    <span className="truncate pr-2">{statusMessage}</span>
+                    <span className="text-primary">{downloadProgress > 0 ? `${Math.round(downloadProgress)}%` : ''}</span>
                   </div>
-                  <div className="w-full h-1 bg-background-dark rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden shadow-inner">
                     <div
-                      className="h-full bg-primary transition-all duration-200 ease-out"
+                      className="h-full bg-gradient-to-r from-primary to-orange-400 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
                       style={{ width: `${downloadProgress}%` }}
                     />
                   </div>
@@ -341,30 +361,45 @@ export const Header: React.FC = () => {
               )}
             </div>
 
-            <h2 className="text-lg font-bold mb-4 text-white">Upload Audio File</h2>
+            {/* Divider */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent flex-1" />
+              <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">OR</span>
+              <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent flex-1" />
+            </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="audio/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            {/* Local File Section */}
+            <div className="mb-6">
+              <label className="block text-[10px] text-gray-400 mb-2 uppercase tracking-wider font-bold">From Device</label>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded-sm transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-300 hover:text-white mb-3"
-            >
-              <span className="material-symbols-outlined inline-block mr-2 text-base">folder_open</span>
-              Browse Files
-            </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
 
-            <button
-              onClick={() => setShowUploadModal(false)}
-              className="w-full p-3 bg-surface-light hover:bg-surface-light/80 rounded-sm transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
-            >
-              Cancel
-            </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full group h-24 bg-surface-light hover:bg-surface-light/80 rounded-xl transition-all flex flex-col items-center justify-center gap-2 shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
+              >
+                <div className="p-2 bg-background-dark group-hover:bg-primary group-hover:text-black rounded-full transition-colors text-gray-400 shadow-ui-element-inset">
+                  <span className="material-symbols-outlined text-xl block">audio_file</span>
+                </div>
+                <span className="text-sm text-gray-400 group-hover:text-white font-medium transition-colors">Click to browse audio files</span>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="text-gray-400 hover:text-white text-sm font-medium px-4 py-2 hover:bg-white/5 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

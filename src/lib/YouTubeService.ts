@@ -70,12 +70,14 @@ export class YouTubeService {
         return sorted[0].url;
     }
 
-    static async getBestAudioUrl(videoId: string): Promise<AudioFetchResult> {
+    static async getBestAudioUrl(videoId: string, onStatus?: (msg: string) => void): Promise<AudioFetchResult> {
         const errors: string[] = [];
 
         for (const source of YOUTUBE_API_SOURCES) {
             try {
-                console.log(`Trying to fetch audio from ${source.name} (${source.type})...`);
+                const msg = `Checking ${source.name}...`;
+                console.log(msg);
+                onStatus?.(msg);
 
                 let url = '';
                 if (source.type === 'piped') {
@@ -105,9 +107,10 @@ export class YouTubeService {
                 };
 
             } catch (error) {
-                const msg = `Failed to fetch from ${source.name}: ${error}`;
-                console.warn(msg);
-                errors.push(msg);
+                const msg = `Failed ${source.name}, skipping...`;
+                console.warn(msg, error);
+                onStatus?.(msg);
+                errors.push(`${source.name}: ${error}`);
                 // Continue to next source
             }
         }
