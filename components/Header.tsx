@@ -42,7 +42,7 @@ export const Header: React.FC = () => {
     try {
       const result = await YouTubeService.getBestAudioUrl(videoId);
       console.log(`🎵 Using: ${result.source} (${result.apiType})`);
-      setStatusMessage(`Source: ${result.source} - Starting download...`);
+      setStatusMessage(`${result.source} - Starting download...`);
 
       // Try to fetch with a CORS proxy if direct fetch fails
       // We'll try direct first, then a public proxy
@@ -75,13 +75,13 @@ export const Header: React.FC = () => {
 
         if (total) {
           setDownloadProgress((loaded / total) * 100);
-          setStatusMessage(`Downloading... ${Math.round((loaded / total) * 100)}%`);
+          setStatusMessage(`${result.source} - Downloading ${Math.round((loaded / total) * 100)}%`);
         } else {
-          setStatusMessage(`Downloading... ${(loaded / 1024 / 1024).toFixed(2)} MB`);
+          setStatusMessage(`${result.source} - Downloading ${(loaded / 1024 / 1024).toFixed(2)} MB`);
         }
       }
 
-      setStatusMessage('Processing audio...');
+      setStatusMessage(`${result.source} - Processing audio...`);
       const blob = new Blob(chunks, { type: 'audio/mp4' }); // Assuming mp4/m4a from YouTube
       const file = new File([blob], `youtube-${videoId}.mp4`, { type: blob.type || 'audio/mp4' });
 

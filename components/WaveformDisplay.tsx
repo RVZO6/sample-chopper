@@ -209,6 +209,17 @@ export const WaveformDisplay: React.FC = () => {
     const startPeakIndex = Math.floor(visibleStartTime * peaksPerSecond);
     const endPeakIndex = Math.ceil(visibleEndTime * peaksPerSecond);
 
+    // Density Optimization: Skip peaks when zoomed out
+    // Calculate how many peaks we have per pixel
+    const pixelsPerPeak = pixelsPerSecond / peaksPerSecond;
+    // If we have less than 1 pixel per peak (i.e., multiple peaks per pixel),
+    // we should skip some peaks to avoid overdrawing
+    const step = pixelsPerPeak < 1 ? Math.ceil(1 / pixelsPerPeak) : 1;
+
+    // Align start index to step boundary to prevent flickering during playback
+    // This ensures we always draw the same peaks regardless of small shifts
+    const alignedStartIndex = Math.floor(startPeakIndex / step) * step;
+
     // Draw waveform with yellow/amber gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, '#fb923c');    // orange-400
@@ -218,8 +229,11 @@ export const WaveformDisplay: React.FC = () => {
     gradient.addColorStop(1, '#fb923c');    // orange-400
 
     ctx.lineWidth = 2;
+    ctx.strokeStyle = gradient;
 
-    for (let i = startPeakIndex; i < endPeakIndex; i++) {
+    // Batch all lines into one path to avoid flickering
+    ctx.beginPath();
+    for (let i = alignedStartIndex; i < endPeakIndex; i += step) {
       const peak = peaks[i];
       const time = i / peaksPerSecond;
       const x = startX + (time * pixelsPerSecond);
@@ -227,12 +241,10 @@ export const WaveformDisplay: React.FC = () => {
       const h = peak * (height * 0.8);
       const y = (height - h) / 2;
 
-      ctx.strokeStyle = gradient;
-      ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x, y + h);
-      ctx.stroke();
     }
+    ctx.stroke();
 
     // Draw Cue Point Flags
     pads.forEach(pad => {
