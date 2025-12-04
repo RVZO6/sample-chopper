@@ -1,16 +1,132 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useDrag, usePinch } from '@use-gesture/react';
 import { useAudio, useAudioTime } from '@/context/AudioContext';
 
+// ============================================================================
+// Configuration
+// ============================================================================
+//
+// TODO: Firefox shows occasional stutter/lag compared to Chrome/Safari.
+// Current Canvas2D optimizations help but don't fully resolve it.
+// Consider migrating to WebGL renderer if Firefox performance is critical.
+// See: https://github.com/nicbarker/clay (WebGL 2D rendering library)
+
+const CONFIG = {
+  /** Enable momentum scrolling after drag release */
+  ENABLE_MOMENTUM: false,
+  /** Minimum pixels between time tick labels */
+  MIN_TICK_SPACING: 60,
+  /** Background color matching app theme */
+  BACKGROUND_COLOR: '#1e1e1e',
+  /** Maximum zoom level (pixels per second) */
+  MAX_ZOOM: 1000,
+  /** Minimum zoom level (pixels per second) */
+  MIN_ZOOM: 10,
+  /** LOD levels configuration: [peaksPerSecond] from lowest to highest detail */
+  LOD_LEVELS: [25, 50, 100, 200, 400],
+} as const;
+
+// Color map for cue point flags
+const FLAG_COLOR_MAP: Record<string, string> = {
+  'bg-red-700': '#b91c1c',
+  'bg-yellow-600': '#ca8a04',
+  'bg-fuchsia-700': '#a21caf',
+  'bg-orange-600': '#ea580c',
+  'bg-green-600': '#16a34a',
+  'bg-yellow-500': '#eab308',
+  'bg-red-800': '#991b1b',
+  'bg-green-700': '#15803d',
+  'bg-surface-dark': '#1e1e1e',
+  'bg-red-600': '#dc2626',
+  'bg-green-500': '#22c55e',
+  'bg-red-900': '#7f1d1d',
+};
+
+// Time tick intervals in seconds
+const TICK_INTERVALS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300];
+
+// ============================================================================
+// LOD Peak Data Structure
+// ============================================================================
+
+interface LODPeaks {
+  /** Peaks per second for this LOD level */
+  peaksPerSecond: number;
+  /** The peak data */
+  peaks: number[];
+}
+
+interface PeakData {
+  /** All LOD levels, sorted from lowest to highest detail */
+  levels: LODPeaks[];
+  /** Whether all levels have been computed */
+  isComplete: boolean;
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
 export const WaveformDisplay: React.FC = () => {
+  // Canvas refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+
+  // Audio context
   const currentTime = useAudioTime();
   const { audioEngine, duration, seek, play, pause, isPlaying, pads, setPadCuePoint } = useAudio();
-  const [peaks, setPeaks] = useState<number[]>([]);
+
+  // State
+  const [peakData, setPeakData] = useState<PeakData>({ levels: [], isComplete: false });
   const [zoom, setZoom] = useState(100); // Pixels per second
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  // Handle Resize
+  // Drag state for gestures
+  const dragStartTimeRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Flag dragging state
+  const [draggingFlagId, setDraggingFlagId] = useState<string | null>(null);
+  const flagDragStartX = useRef(0);
+  const flagDragStartTime = useRef(0);
+
+  // Cache gradient to avoid recreating every frame
+  const gradientRef = useRef<CanvasGradient | null>(null);
+  const lastHeightRef = useRef(0);
+
+  // Calculate minimum zoom based on container width and duration
+  const minZoom = useMemo(() => {
+    if (duration <= 0 || dimensions.width <= 0) return CONFIG.MIN_ZOOM;
+    return Math.max(CONFIG.MIN_ZOOM, (dimensions.width * 0.9) / duration);
+  }, [duration, dimensions.width]);
+
+  // ============================================================================
+  // Select Best LOD Level for Current Zoom
+  // ============================================================================
+
+  const selectedLOD = useMemo((): LODPeaks | null => {
+    if (peakData.levels.length === 0) return null;
+
+    // Calculate how many peaks per pixel we want (aim for ~1 peak per 2 pixels)
+    const idealPeaksPerSecond = zoom / 2;
+
+    // Find the smallest LOD that has enough detail
+    // (first one with peaksPerSecond >= ideal, or the highest available)
+    for (const level of peakData.levels) {
+      if (level.peaksPerSecond >= idealPeaksPerSecond) {
+        return level;
+      }
+    }
+
+    // If no level has enough detail, use the highest available
+    return peakData.levels[peakData.levels.length - 1];
+  }, [peakData.levels, zoom]);
+
+  // ============================================================================
+  // Resize Observer
+  // ============================================================================
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -28,220 +144,222 @@ export const WaveformDisplay: React.FC = () => {
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Handle Wheel (Zoom) with non-passive listener to prevent browser zoom
+  // ============================================================================
+  // Wheel Zoom with AbortController
+  // ============================================================================
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
+    const controller = new AbortController();
+
     const handleWheel = (e: WheelEvent) => {
-      // Prevent browser zoom
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
       }
 
-      // Zoom with bounds
       const scale = e.deltaY > 0 ? 0.9 : 1.1;
-
-      // Calculate minimum zoom (entire waveform fits in viewport)
-      const containerWidth = container.clientWidth || 800;
-      const minZoom = duration > 0 ? (containerWidth * 0.9) / duration : 10;
-
-      setZoom(z => Math.max(minZoom, Math.min(1000, z * scale)));
+      setZoom(z => Math.max(minZoom, Math.min(CONFIG.MAX_ZOOM, z * scale)));
     };
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('wheel', handleWheel, {
+      passive: false,
+      signal: controller.signal
+    });
 
-    return () => {
-      container.removeEventListener('wheel', handleWheel);
-    };
-  }, [duration]); // Re-bind if duration changes (unlikely to change often during play)
+    return () => controller.abort();
+  }, [minZoom]);
 
-  // Spacebar play/pause - works for both global and pad playback
+  // ============================================================================
+  // Spacebar Play/Pause
+  // ============================================================================
+
   useEffect(() => {
+    const controller = new AbortController();
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
         if (isPlaying) {
-          // Stop any playback (pad or global) and reset to global mode
           pause();
         } else {
-          // Start global mode playback (no pad settings)
           play();
         }
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { signal: controller.signal });
+    return () => controller.abort();
   }, [isPlaying, play, pause]);
 
-  // Load peaks when audio is ready - optimized peak generation
+  // ============================================================================
+  // Progressive LOD Peak Loading
+  // ============================================================================
+
   useEffect(() => {
-    if (duration > 0) {
+    if (duration <= 0) return;
 
-      const loadPeaks = async () => {
-        try {
-          // Get the audio buffer from our AudioEngine
-          const audioBuffer = audioEngine.getAudioBuffer();
-
-
-          if (!audioBuffer) {
-            console.warn('[WaveformDisplay] No audio buffer available for peak generation');
-            return;
-          }
-
-          // Target number of peaks (200 per second like before)
-          const targetPeakCount = Math.ceil(duration * 200);
-
-
-          // Use asynchronous peak calculation to avoid UI blocking
-          const peaks = await calculatePeaksAsync(audioBuffer, targetPeakCount);
-
-
-          setPeaks(peaks);
-
-        } catch (error) {
-          console.error('[WaveformDisplay] Error generating peaks:', error);
-          // Fallback to synchronous method
-          const width = Math.ceil(duration * 200);
-          const p = audioEngine.getPeaks(width);
-
-          setPeaks(p);
-        }
-      };
-
-      loadPeaks();
+    const audioBuffer = audioEngine.getAudioBuffer();
+    if (!audioBuffer) {
+      console.warn('[WaveformDisplay] No audio buffer available');
+      return;
     }
+
+    // Reset peak data for new audio
+    setPeakData({ levels: [], isComplete: false });
+
+    const channelData = audioBuffer.getChannelData(0);
+    const totalSamples = channelData.length;
+    const sampleRate = audioBuffer.sampleRate;
+
+    // Compute LOD levels progressively, starting from lowest (fastest)
+    let currentLevelIndex = 0;
+    const computedLevels: LODPeaks[] = [];
+
+    const computeNextLevel = () => {
+      if (currentLevelIndex >= CONFIG.LOD_LEVELS.length) {
+        // All levels computed
+        setPeakData({ levels: computedLevels, isComplete: true });
+        return;
+      }
+
+      const peaksPerSecond = CONFIG.LOD_LEVELS[currentLevelIndex];
+      const targetPeakCount = Math.ceil(duration * peaksPerSecond);
+
+      // Compute peaks for this level
+      const peaks = computePeaksFromSamples(channelData, totalSamples, targetPeakCount);
+
+      computedLevels.push({ peaksPerSecond, peaks });
+
+      // Update state with new level (triggers re-render)
+      setPeakData({ levels: [...computedLevels], isComplete: false });
+
+      currentLevelIndex++;
+
+      // Schedule next level computation (yields to UI)
+      setTimeout(computeNextLevel, 0);
+    };
+
+    // Start progressive loading
+    computeNextLevel();
+
   }, [duration, audioEngine]);
 
-  // Optimized peak calculation using chunked async processing
-  async function calculatePeaksAsync(audioBuffer: AudioBuffer, targetPeakCount: number): Promise<number[]> {
-    return new Promise((resolve) => {
-      // Use requestIdleCallback or setTimeout to process in chunks
-      const channelData = audioBuffer.getChannelData(0); // Mono
-      const sampleRate = audioBuffer.sampleRate;
-      const totalSamples = channelData.length;
+  // ============================================================================
+  // Peak Computation Helper
+  // ============================================================================
 
-      // Calculate samples per peak
-      const samplesPerPeak = Math.floor(totalSamples / targetPeakCount);
+  function computePeaksFromSamples(
+    channelData: Float32Array,
+    totalSamples: number,
+    targetPeakCount: number
+  ): number[] {
+    const samplesPerPeak = Math.floor(totalSamples / targetPeakCount);
+    const peaks: number[] = new Array(targetPeakCount);
 
-      const peaks: number[] = new Array(targetPeakCount);
-      const chunkSize = 10000; // Process 10000 peaks at a time
-      let currentIndex = 0;
+    for (let i = 0; i < targetPeakCount; i++) {
+      const start = i * samplesPerPeak;
+      const end = Math.min(start + samplesPerPeak, totalSamples);
 
-      const processChunk = () => {
-        const endIndex = Math.min(currentIndex + chunkSize, targetPeakCount);
+      let max = 0;
+      for (let j = start; j < end; j++) {
+        const abs = Math.abs(channelData[j]);
+        if (abs > max) max = abs;
+      }
+      peaks[i] = max;
+    }
 
-        for (let i = currentIndex; i < endIndex; i++) {
-          const start = i * samplesPerPeak;
-          const end = Math.min(start + samplesPerPeak, totalSamples);
-
-          let max = 0;
-          for (let j = start; j < end; j++) {
-            const abs = Math.abs(channelData[j]);
-            if (abs > max) max = abs;
-          }
-
-          peaks[i] = max;
-        }
-
-        currentIndex = endIndex;
-
-        if (currentIndex < targetPeakCount) {
-          // Still more to process, schedule next chunk
-          setTimeout(processChunk, 0);
-        } else {
-          // Done!
-          resolve(peaks);
-        }
-      };
-
-      // Start processing
-      processChunk();
-    });
+    return peaks;
   }
 
-  // Draw Loop
+  // ============================================================================
+  // Main Draw Loop
+  // ============================================================================
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
 
-    const ctx = canvas.getContext('2d');
+    // Cache context with Firefox-friendly options
+    if (!ctxRef.current) {
+      ctxRef.current = canvas.getContext('2d', {
+        alpha: false,           // No transparency needed, faster compositing
+        desynchronized: true,   // Reduce latency (hint, may be ignored)
+      });
+    }
+    const ctx = ctxRef.current;
     if (!ctx) return;
 
     const width = container.clientWidth;
     const height = container.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
 
     // Handle High DPI
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      gradientRef.current = null;
+    }
 
-    // Clear with app's surface-dark background
-    ctx.fillStyle = '#1e1e1e'; // surface-dark to match app
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+
+    // Clear with background
+    ctx.fillStyle = CONFIG.BACKGROUND_COLOR;
     ctx.fillRect(0, 0, width, height);
 
-    if (peaks.length === 0) {
+    if (!selectedLOD) {
       ctx.fillStyle = '#6b7280';
       ctx.font = '14px monospace';
-      ctx.fillText('LOADING / NO AUDIO', width / 2 - 60, height / 2);
+      ctx.textAlign = 'center';
+      ctx.fillText('LOADING / NO AUDIO', width / 2, height / 2);
       return;
     }
 
-    // Drawing Logic
+    const { peaks, peaksPerSecond } = selectedLOD;
     const centerX = width / 2;
     const pixelsPerSecond = zoom;
     const currentPixel = currentTime * pixelsPerSecond;
     const startX = centerX - currentPixel;
-    const peaksPerSecond = peaks.length / duration;
 
-    // Optimization: Draw only visible range
+    // Calculate visible range
     const visibleStartTime = Math.max(0, (currentPixel - centerX) / pixelsPerSecond);
     const visibleEndTime = Math.min(duration, (currentPixel + centerX) / pixelsPerSecond);
 
-    const startPeakIndex = Math.floor(visibleStartTime * peaksPerSecond);
-    const endPeakIndex = Math.ceil(visibleEndTime * peaksPerSecond);
+    const startPeakIndex = Math.max(0, Math.floor(visibleStartTime * peaksPerSecond));
+    const endPeakIndex = Math.min(peaks.length, Math.ceil(visibleEndTime * peaksPerSecond));
 
-    // Density Optimization: Skip peaks when zoomed out
-    // Calculate how many peaks we have per pixel
-    const pixelsPerPeak = pixelsPerSecond / peaksPerSecond;
-    // If we have less than 1 pixel per peak (i.e., multiple peaks per pixel),
-    // we should skip some peaks to avoid overdrawing
-    const step = pixelsPerPeak < 1 ? Math.ceil(1 / pixelsPerPeak) : 1;
+    // Cache gradient
+    if (!gradientRef.current || lastHeightRef.current !== height) {
+      gradientRef.current = ctx.createLinearGradient(0, 0, 0, height);
+      gradientRef.current.addColorStop(0, '#fb923c');
+      gradientRef.current.addColorStop(0.3, '#fbbf24');
+      gradientRef.current.addColorStop(0.7, '#fbbf24');
+      gradientRef.current.addColorStop(1, '#fb923c');
+      lastHeightRef.current = height;
+    }
 
-    // Align start index to step boundary to prevent flickering during playback
-    // This ensures we always draw the same peaks regardless of small shifts
-    const alignedStartIndex = Math.floor(startPeakIndex / step) * step;
-
-    // Draw waveform with yellow/amber gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, '#fb923c');    // orange-400
-    gradient.addColorStop(0.3, '#fbbf24');  // amber-400 (primary)
-    gradient.addColorStop(0.5, '#fbbf24');  // amber-400 (primary)
-    gradient.addColorStop(0.7, '#fbbf24');  // amber-400 (primary)
-    gradient.addColorStop(1, '#fb923c');    // orange-400
-
+    // Draw waveform - NO SKIPPING, LOD handles density
     ctx.lineWidth = 2;
-    ctx.strokeStyle = gradient;
-
-    // Batch all lines into one path to avoid flickering
+    ctx.strokeStyle = gradientRef.current;
     ctx.beginPath();
-    for (let i = alignedStartIndex; i < endPeakIndex; i += step) {
-      const peak = peaks[i];
-      const time = i / peaksPerSecond;
-      const x = startX + (time * pixelsPerSecond);
 
-      const h = peak * (height * 0.8);
-      const y = (height - h) / 2;
+    // Pre-calculate constants outside loop (helps Firefox JIT)
+    const heightScale = height * 0.8;
+    const halfHeight = height / 2;
+    const pps = peaksPerSecond; // Local var faster than property access
 
+    for (let i = startPeakIndex; i < endPeakIndex; i++) {
+      const h = peaks[i] * heightScale;
+      const x = startX + (i / pps) * pixelsPerSecond;
+      const y = halfHeight - h / 2;
       ctx.moveTo(x, y);
       ctx.lineTo(x, y + h);
     }
@@ -254,28 +372,10 @@ export const WaveformDisplay: React.FC = () => {
       const padPixel = pad.cuePoint * pixelsPerSecond;
       const x = startX + padPixel;
 
-      // Only draw if visible
       if (x < -20 || x > width + 20) return;
 
-      // Get Color
-      const colorMap: Record<string, string> = {
-        'bg-red-700': '#b91c1c',
-        'bg-yellow-600': '#ca8a04',
-        'bg-fuchsia-700': '#a21caf',
-        'bg-orange-600': '#ea580c',
-        'bg-green-600': '#16a34a',
-        'bg-yellow-500': '#eab308',
-        'bg-red-800': '#991b1b',
-        'bg-green-700': '#15803d',
-        'bg-surface-dark': '#1e1e1e',
-        'bg-red-600': '#dc2626',
-        'bg-green-500': '#22c55e',
-        'bg-red-900': '#7f1d1d',
-      };
+      const flagColor = FLAG_COLOR_MAP[pad.color] || '#ffffff';
 
-      const flagColor = colorMap[pad.color] || '#ffffff';
-
-      // Draw Flag Line (Stick)
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
@@ -283,7 +383,6 @@ export const WaveformDisplay: React.FC = () => {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Draw Flag Triangle (Top)
       ctx.fillStyle = flagColor;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -292,7 +391,6 @@ export const WaveformDisplay: React.FC = () => {
       ctx.closePath();
       ctx.fill();
 
-      // Draw Flag Triangle (Bottom)
       ctx.beginPath();
       ctx.moveTo(x, height);
       ctx.lineTo(x + 12, height);
@@ -306,11 +404,8 @@ export const WaveformDisplay: React.FC = () => {
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
 
-    let tickInterval: number;
-    const minPixelsBetweenTicks = 60;
-    const idealSecondsPerTick = minPixelsBetweenTicks / pixelsPerSecond;
-    const intervals = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300];
-    tickInterval = intervals.find(i => i >= idealSecondsPerTick) || 300;
+    const idealSecondsPerTick = CONFIG.MIN_TICK_SPACING / pixelsPerSecond;
+    const tickInterval = TICK_INTERVALS.find(i => i >= idealSecondsPerTick) || 300;
 
     const startTick = Math.floor(visibleStartTime / tickInterval) * tickInterval;
     const endTick = Math.ceil(visibleEndTime / tickInterval) * tickInterval;
@@ -324,8 +419,7 @@ export const WaveformDisplay: React.FC = () => {
       ctx.fillText(timeStr, x, height - 14);
     }
 
-    // Draw Center Caret LAST (on top of everything - thick white line with glow)
-    ctx.save();
+    // Draw Center Playhead (avoid save/restore for Firefox perf)
     ctx.shadowBlur = 10;
     ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
     ctx.strokeStyle = '#ffffff';
@@ -334,97 +428,74 @@ export const WaveformDisplay: React.FC = () => {
     ctx.moveTo(centerX, 0);
     ctx.lineTo(centerX, height);
     ctx.stroke();
-    ctx.restore();
+    // Reset shadow (cheaper than save/restore)
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
 
-  }, [peaks, zoom, currentTime, duration, dimensions, pads]);
+  }, [selectedLOD, zoom, currentTime, duration, dimensions, pads]);
 
-  // Interaction
-  const isDragging = useRef(false);
-  const [isDraggingState, setIsDraggingState] = useState(false);
-  const hasDragged = useRef(false);
-  const lastX = useRef(0);
-  const clickedOnFlag = useRef(false);
+  // ============================================================================
+  // Gesture Handlers
+  // ============================================================================
 
-  // Flag dragging state
-  const [draggingFlagId, setDraggingFlagId] = useState<string | null>(null);
-  const flagDragStartX = useRef(0);
-  const flagDragStartTime = useRef(0);
+  const bindDrag = useDrag(
+    ({ first, active, movement: [mx], tap, event }) => {
+      if (draggingFlagId) return;
 
-  // Global mouse up
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (isDragging.current) {
-        isDragging.current = false;
-        setIsDraggingState(false);
-        document.body.style.cursor = 'default';
+      if (first) {
+        dragStartTimeRef.current = currentTime;
+        setIsDragging(true);
       }
-      if (draggingFlagId) {
-        setDraggingFlagId(null);
-        document.body.style.cursor = 'default';
-      }
-    };
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [draggingFlagId]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Don't start drag if clicking on a flag
-    if (clickedOnFlag.current) {
-      clickedOnFlag.current = false;
-      return;
-    }
-
-    // Start potential drag (don't seek yet)
-    isDragging.current = true;
-    hasDragged.current = false;
-    lastX.current = e.clientX;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current) return;
-
-    const deltaX = e.clientX - lastX.current;
-
-    // Only show grabbing cursor after movement starts
-    if (Math.abs(deltaX) > 2 && !hasDragged.current) {
-      hasDragged.current = true;
-      setIsDraggingState(true);
-      document.body.style.cursor = 'grabbing';
-    }
-
-    if (hasDragged.current) {
-      lastX.current = e.clientX;
-      const dt = -deltaX / zoom;
-      const newTime = Math.max(0, Math.min(duration, currentTime + dt));
-      seek(newTime);
-    }
-  };
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    // If we didn't drag, this is a click - seek to position
-    if (isDragging.current && !hasDragged.current) {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const clickX = e.clientX - rect.left;
-        const centerX = rect.width / 2;
-        const pixelsFromCenter = clickX - centerX;
-        const timeOffset = pixelsFromCenter / zoom;
-        const clickedTime = currentTime + timeOffset;
-        const newTime = Math.max(0, Math.min(duration, clickedTime));
+      if (active && !tap) {
+        const dt = -mx / zoom;
+        const newTime = Math.max(0, Math.min(duration, dragStartTimeRef.current + dt));
         seek(newTime);
       }
-    }
 
-    isDragging.current = false;
-    setIsDraggingState(false);
-    hasDragged.current = false;
-    document.body.style.cursor = 'default';
+      if (!active) {
+        setIsDragging(false);
+
+        if (tap && containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const clientX = (event as MouseEvent).clientX;
+          const clickX = clientX - rect.left;
+          const centerX = rect.width / 2;
+          const pixelsFromCenter = clickX - centerX;
+          const timeOffset = pixelsFromCenter / zoom;
+          const clickedTime = currentTime + timeOffset;
+          const newTime = Math.max(0, Math.min(duration, clickedTime));
+          seek(newTime);
+        }
+      }
+    },
+    {
+      pointer: { touch: true },
+      filterTaps: true,
+    }
+  );
+
+  const bindPinch = usePinch(
+    ({ offset: [scale] }) => {
+      const baseZoom = 100;
+      setZoom(Math.max(minZoom, Math.min(CONFIG.MAX_ZOOM, baseZoom * scale)));
+    },
+    {
+      scaleBounds: { min: minZoom / 100, max: CONFIG.MAX_ZOOM / 100 },
+    }
+  );
+
+  const gestureBindings = {
+    ...bindDrag(),
+    ...bindPinch(),
   };
 
-  // Flag drag handlers
-  const handleFlagMouseDown = (padId: string, e: React.MouseEvent) => {
+  // ============================================================================
+  // Flag Drag Handlers
+  // ============================================================================
+
+  const handleFlagMouseDown = useCallback((padId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    clickedOnFlag.current = true;
 
     const pad = pads.find(p => p.id === padId);
     if (!pad || pad.cuePoint === null) return;
@@ -432,10 +503,9 @@ export const WaveformDisplay: React.FC = () => {
     setDraggingFlagId(padId);
     flagDragStartX.current = e.clientX;
     flagDragStartTime.current = pad.cuePoint;
-    document.body.style.cursor = 'ew-resize';
-  };
+  }, [pads]);
 
-  const handleFlagMouseMove = (e: React.MouseEvent) => {
+  const handleFlagMouseMove = useCallback((e: React.MouseEvent) => {
     if (!draggingFlagId) return;
 
     const deltaX = e.clientX - flagDragStartX.current;
@@ -443,25 +513,57 @@ export const WaveformDisplay: React.FC = () => {
     const newTime = Math.max(0, Math.min(duration, flagDragStartTime.current + deltaTime));
 
     setPadCuePoint(draggingFlagId, newTime);
-  };
+  }, [draggingFlagId, zoom, duration, setPadCuePoint]);
+
+  const handleFlagMouseUp = useCallback(() => {
+    setDraggingFlagId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!draggingFlagId) return;
+
+    const controller = new AbortController();
+
+    window.addEventListener('mouseup', handleFlagMouseUp, { signal: controller.signal });
+    window.addEventListener('mousemove', (e) => {
+      const deltaX = e.clientX - flagDragStartX.current;
+      const deltaTime = deltaX / zoom;
+      const newTime = Math.max(0, Math.min(duration, flagDragStartTime.current + deltaTime));
+      setPadCuePoint(draggingFlagId, newTime);
+    }, { signal: controller.signal });
+
+    return () => controller.abort();
+  }, [draggingFlagId, zoom, duration, setPadCuePoint, handleFlagMouseUp]);
+
+  // ============================================================================
+  // Render
+  // ============================================================================
+
+  const cursorStyle = useMemo(() => {
+    if (draggingFlagId) return 'ew-resize';
+    if (isDragging) return 'grabbing';
+    return 'crosshair';
+  }, [draggingFlagId, isDragging]);
 
   return (
     <div
       ref={containerRef}
-      className="h-64 bg-surface-dark rounded-sm relative shadow-ui-element-inset overflow-hidden border border-black/50"
-      onMouseDown={handleMouseDown}
-      onMouseMove={draggingFlagId ? handleFlagMouseMove : handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      style={{ cursor: draggingFlagId ? 'ew-resize' : (isDraggingState ? 'grabbing' : 'crosshair') }}
+      className="h-64 bg-surface-dark rounded-sm relative shadow-ui-element-inset overflow-hidden border border-black/50 touch-none"
+      {...gestureBindings}
+      onMouseMove={draggingFlagId ? handleFlagMouseMove : undefined}
+      style={{ cursor: cursorStyle }}
     >
-      <canvas ref={canvasRef} className="block w-full h-full" />
+      <canvas
+        ref={canvasRef}
+        className="block w-full h-full"
+        style={{ willChange: 'contents' }}  // GPU compositing hint
+      />
 
-      {/* Zoom Controls Overlay */}
+      {/* Zoom Controls */}
       <div className="absolute top-3 right-3 flex flex-col bg-surface-dark/80 backdrop-blur-xs rounded-sm border border-white/10 shadow-lg overflow-hidden">
         <button
           className="p-1.5 text-gray-300 hover:text-white hover:bg-white/10 rounded-t transition-colors active:bg-white/20"
-          onClick={() => setZoom(z => Math.min(1000, z * 1.4))}
+          onClick={() => setZoom(z => Math.min(CONFIG.MAX_ZOOM, z * 1.4))}
           title="Zoom In"
         >
           <span className="material-symbols-outlined text-sm">add</span>
@@ -469,14 +571,16 @@ export const WaveformDisplay: React.FC = () => {
         <div className="w-full h-px bg-white/10"></div>
         <button
           className="p-1.5 text-gray-300 hover:text-white hover:bg-white/10 rounded-b transition-colors active:bg-white/20"
-          onClick={() => setZoom(z => Math.max(10, z * 0.7))}
+          onClick={() => setZoom(z => Math.max(minZoom, z * 0.7))}
           title="Zoom Out"
         >
           <span className="material-symbols-outlined text-sm">remove</span>
         </button>
       </div>
 
-      {/* Interactive Flag Overlays - Top and Bottom Triangles Only */}
+
+
+      {/* Interactive Flag Overlays */}
       {pads.map(pad => {
         if (pad.cuePoint === null) return null;
 
@@ -492,12 +596,10 @@ export const WaveformDisplay: React.FC = () => {
         const padPixel = pad.cuePoint * pixelsPerSecond;
         const x = startX + padPixel;
 
-        // Only render if visible
         if (x < -20 || x > width + 20) return null;
 
         return (
           <React.Fragment key={pad.id}>
-            {/* Top triangle hit area */}
             <div
               onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
               className="absolute cursor-ew-resize hover:opacity-50"
@@ -510,7 +612,6 @@ export const WaveformDisplay: React.FC = () => {
               }}
               title={`Drag to reposition ${pad.label}`}
             />
-            {/* Bottom triangle hit area */}
             <div
               onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
               className="absolute cursor-ew-resize hover:opacity-50"
