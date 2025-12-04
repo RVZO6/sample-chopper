@@ -3,12 +3,7 @@ import { AudioEngine, PadParams as EnginePadParams } from '../lib/AudioEngine';
 import { AudioLoader } from '../lib/AudioLoader';
 import { mapAttackToSeconds, mapReleaseToSeconds } from '../lib/audioUtils';
 
-// Extend Window interface for webkitAudioContext
-declare global {
-    interface Window {
-        webkitAudioContext: typeof AudioContext;
-    }
-}
+
 
 // ============================================================================
 // Types & Interfaces
@@ -211,7 +206,6 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // currentTime moved to AudioTimeProvider
     const [duration, setDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Analysis State
@@ -232,8 +226,6 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         engine.onStop = () => {
             setIsPlaying(false);
         };
-
-        setIsLoading(false);
 
         return () => {
             // AudioEngine cleanup handled internally
@@ -440,10 +432,11 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             // Perform analysis
             performAnalysisWithReuse(buffer);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[AudioContext] Failed to load audio file:', error);
             setIsAnalyzing(false);
-            setError(error.message || 'Failed to load audio file');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load audio file';
+            setError(errorMessage);
         }
     };
 

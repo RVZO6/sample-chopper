@@ -32,9 +32,12 @@ export const Knob: React.FC<KnobProps> = ({
   const rotation = -135 + (percent * 270);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+    if (!isDragging) return;
 
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    const handleMouseMove = (e: MouseEvent) => {
       const dy = startY.current - e.clientY;
       const range = max - min;
       const delta = (dy / 200) * range;
@@ -50,15 +53,12 @@ export const Knob: React.FC<KnobProps> = ({
       document.body.style.cursor = 'default';
     };
 
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'ns-resize';
-    }
+    document.body.style.cursor = 'ns-resize';
+    window.addEventListener('mousemove', handleMouseMove, { signal });
+    window.addEventListener('mouseup', handleMouseUp, { signal });
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      controller.abort();
       document.body.style.cursor = 'default';
     };
   }, [isDragging, max, min, onChange]);

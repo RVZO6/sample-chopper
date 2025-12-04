@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Knob } from './Knob';
 import { useAudio } from '@/context/AudioContext';
 import { mapAttackToSeconds, mapReleaseToSeconds, formatTime } from '@/lib/audioUtils';
+import { TIME_STRETCH_MIN, TIME_STRETCH_MAX } from '@/config/constants';
 
 /**
  * Main control panel for audio parameters.
@@ -22,6 +23,14 @@ export const ControlPanel: React.FC = () => {
   const [isDraggingTime, setIsDraggingTime] = useState(false);
   const [isInteractingAttack, setIsInteractingAttack] = useState(false);
   const [isInteractingRelease, setIsInteractingRelease] = useState(false);
+  const dragControllerRef = useRef<AbortController | null>(null);
+
+  // Cleanup drag listeners on unmount
+  useEffect(() => {
+    return () => {
+      dragControllerRef.current?.abort();
+    };
+  }, []);
 
   const handleTimeStretchDrag = (e: React.MouseEvent) => {
     if (!selectedPad) return; // Disable if no pad
@@ -30,24 +39,28 @@ export const ControlPanel: React.FC = () => {
     const startY = e.clientY;
     const startVal = timeStretch;
 
+    // Abort any existing drag listeners
+    dragControllerRef.current?.abort();
+    dragControllerRef.current = new AbortController();
+    const signal = dragControllerRef.current.signal;
+
     const mouseMove = (ev: MouseEvent) => {
       const delta = startY - ev.clientY;
       // 1px = 1%
       let newVal = startVal + delta;
-      newVal = Math.max(50, Math.min(200, newVal)); // Limit 50% to 200%
+      newVal = Math.max(TIME_STRETCH_MIN, Math.min(TIME_STRETCH_MAX, newVal)); // Limit to defined range
       updateSelectedPadParams({ timeStretch: Math.round(newVal) });
     };
 
     const mouseUp = () => {
       setIsDraggingTime(false);
-      window.removeEventListener('mousemove', mouseMove);
-      window.removeEventListener('mouseup', mouseUp);
+      dragControllerRef.current?.abort();
       document.body.style.cursor = 'default';
     };
 
     document.body.style.cursor = 'ns-resize';
-    window.addEventListener('mousemove', mouseMove);
-    window.addEventListener('mouseup', mouseUp);
+    window.addEventListener('mousemove', mouseMove, { signal });
+    window.addEventListener('mouseup', mouseUp, { signal });
   };
 
   return (

@@ -96,7 +96,7 @@ self.onmessage = function (e) {
             });
 
         } catch (error) {
-            console.error('[Worker] Analysis error:', error);
+            // Analysis error - notify main thread
             self.postMessage({ type: 'ERROR', payload: error.message });
         }
     }

@@ -126,7 +126,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
     startPlayback(data) {
         if (!this.initialized || !this.audioSource) {
-            console.error('[RubberBand] Cannot start playback: not initialized or no audio source');
+            // Cannot start playback - not initialized or no audio source
             return;
         }
 

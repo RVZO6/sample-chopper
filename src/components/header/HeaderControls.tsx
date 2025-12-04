@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { BPM_MIN, BPM_MAX, DRAG_SENSITIVITY_PX, EDIT_MODE_DELAY_MS } from '@/config/constants';
 
 const KEYS_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const KEYS_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -71,7 +72,9 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
     }, [isBpmEditing]);
 
     // ========== Key Control Handlers ==========
-    const handleKeyMouseDown = (e: React.MouseEvent) => {
+    const keyDragControllerRef = useRef<AbortController | null>(null);
+
+    const handleKeyMouseDown = useCallback((e: React.MouseEvent) => {
         if (isKeyEditing || detectedKeyIndex === null) return;
         if (e.detail === 2) {
             // Clear any pending edit timeout on double-click
@@ -87,34 +90,48 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
         startKeyYRef.current = e.clientY;
         isKeyClickRef.current = true;
 
+        // Abort any existing drag listeners
+        keyDragControllerRef.current?.abort();
+        keyDragControllerRef.current = new AbortController();
+        const signal = keyDragControllerRef.current.signal;
+
         const handleMouseMove = (ev: MouseEvent) => {
             const deltaY = startKeyYRef.current - ev.clientY;
             if (Math.abs(deltaY) > 2) {
                 isKeyClickRef.current = false;
                 setIsKeyDragging(true);
             }
-            // Sensitivity: 3px per semitone
-            const steps = Math.floor(deltaY / 3);
+            // Sensitivity: DRAG_SENSITIVITY_PX per semitone
+            const steps = Math.floor(deltaY / DRAG_SENSITIVITY_PX);
             onKeyShiftChange(startKeyShiftRef.current + steps);
         };
 
         const handleMouseUp = () => {
             setIsKeyDragging(false);
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            keyDragControllerRef.current?.abort();
 
             if (isKeyClickRef.current) {
                 // Delay entering edit mode to allow double-click to fire
                 keyEditTimeoutRef.current = setTimeout(() => {
                     setIsKeyEditing(true);
                     setKeyInputValue(String(globalKeyShift));
-                }, 100);
+                }, EDIT_MODE_DELAY_MS);
             }
         };
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    };
+        window.addEventListener('mousemove', handleMouseMove, { signal });
+        window.addEventListener('mouseup', handleMouseUp, { signal });
+    }, [isKeyEditing, detectedKeyIndex, globalKeyShift, onKeyShiftChange]);
+
+    // Cleanup key drag listeners on unmount
+    useEffect(() => {
+        return () => {
+            keyDragControllerRef.current?.abort();
+            if (keyEditTimeoutRef.current) {
+                clearTimeout(keyEditTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleKeyDoubleClick = () => {
         // Cancel pending edit mode
@@ -146,7 +163,9 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
     };
 
     // ========== BPM Control Handlers ==========
-    const handleBpmMouseDown = (e: React.MouseEvent) => {
+    const bpmDragControllerRef = useRef<AbortController | null>(null);
+
+    const handleBpmMouseDown = useCallback((e: React.MouseEvent) => {
         if (isBpmEditing || !currentBpm) return;
         if (e.detail === 2) {
             // Clear any pending edit timeout on double-click
@@ -162,35 +181,49 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
         startBpmYRef.current = e.clientY;
         isBpmClickRef.current = true;
 
+        // Abort any existing drag listeners
+        bpmDragControllerRef.current?.abort();
+        bpmDragControllerRef.current = new AbortController();
+        const signal = bpmDragControllerRef.current.signal;
+
         const handleMouseMove = (ev: MouseEvent) => {
             const deltaY = startBpmYRef.current - ev.clientY;
             if (Math.abs(deltaY) > 2) {
                 isBpmClickRef.current = false;
                 setIsBpmDragging(true);
             }
-            // Sensitivity: 3px per BPM
-            const steps = deltaY / 3;
-            const newBpm = Math.max(50, Math.min(250, startBpmRef.current + steps));
+            // Sensitivity: DRAG_SENSITIVITY_PX per BPM
+            const steps = deltaY / DRAG_SENSITIVITY_PX;
+            const newBpm = Math.max(BPM_MIN, Math.min(BPM_MAX, startBpmRef.current + steps));
             onBpmChange(newBpm);
         };
 
         const handleMouseUp = () => {
             setIsBpmDragging(false);
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            bpmDragControllerRef.current?.abort();
 
             if (isBpmClickRef.current) {
                 // Delay entering edit mode to allow double-click to fire
                 bpmEditTimeoutRef.current = setTimeout(() => {
                     setIsBpmEditing(true);
                     setBpmInputValue(currentBpm.toFixed(2));
-                }, 100);
+                }, EDIT_MODE_DELAY_MS);
             }
         };
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    };
+        window.addEventListener('mousemove', handleMouseMove, { signal });
+        window.addEventListener('mouseup', handleMouseUp, { signal });
+    }, [isBpmEditing, currentBpm, onBpmChange]);
+
+    // Cleanup BPM drag listeners on unmount
+    useEffect(() => {
+        return () => {
+            bpmDragControllerRef.current?.abort();
+            if (bpmEditTimeoutRef.current) {
+                clearTimeout(bpmEditTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleBpmDoubleClick = () => {
         // Cancel pending edit mode
@@ -203,24 +236,24 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
         }
     };
 
+    const validateAndUpdateBpm = (valueStr: string) => {
+        const val = parseFloat(valueStr);
+        if (!isNaN(val) && val >= BPM_MIN && val <= BPM_MAX) {
+            onBpmChange(val);
+        }
+        setIsBpmEditing(false);
+    };
+
     const handleBpmInputKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
-            const val = parseFloat(bpmInputValue);
-            if (!isNaN(val) && val >= 50 && val <= 250) {
-                onBpmChange(val);
-            }
-            setIsBpmEditing(false);
+            validateAndUpdateBpm(bpmInputValue);
         } else if (e.key === 'Escape') {
             setIsBpmEditing(false);
         }
     };
 
     const handleBpmInputBlur = () => {
-        const val = parseFloat(bpmInputValue);
-        if (!isNaN(val) && val >= 50 && val <= 250) {
-            onBpmChange(val);
-        }
-        setIsBpmEditing(false);
+        validateAndUpdateBpm(bpmInputValue);
     };
 
     // ========== Computed Values ==========
