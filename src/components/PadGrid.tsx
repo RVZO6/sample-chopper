@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { Pad } from './Pad';
-import { useAudio } from '@/context/AudioContext';
+import { useAudio, useAudioTime } from '@/context/AudioContext';
 
 export const PadGrid: React.FC = () => {
-  const { pads, currentTime, triggerPad, stopPad, setPadCuePoint, clearPad, playMode, audioEngine } = useAudio();
+  const { pads, triggerPad, stopPad, setPadCuePoint, clearPad, playMode, audioEngine } = useAudio();
+  const currentTime = useAudioTime();
 
   // Track active keys to prevent repeat firing and handle gate mode
   const activeKeysRef = useRef<Set<string>>(new Set());

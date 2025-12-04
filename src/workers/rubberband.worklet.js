@@ -125,7 +125,10 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     }
 
     startPlayback(data) {
-        if (!this.initialized || !this.audioSource) return;
+        if (!this.initialized || !this.audioSource) {
+            console.error('[RubberBand] Cannot start playback: not initialized or no audio source');
+            return;
+        }
 
         this.isPlaying = true;
         this.isReverse = data.reverse;
@@ -152,8 +155,6 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         // Clamp playEnd
         this.playEnd = Math.max(0, Math.min(this.sourceLength, this.playEnd));
-
-
     }
 
     stopPlayback() {
