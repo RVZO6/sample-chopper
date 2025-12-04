@@ -81,12 +81,12 @@ export const WaveformDisplay: React.FC = () => {
   // Load peaks when audio is ready - optimized peak generation
   useEffect(() => {
     if (duration > 0) {
-      console.log('[WaveformDisplay] Starting optimized peak generation, duration:', duration);
+
       const loadPeaks = async () => {
         try {
           // Get the audio buffer from our AudioEngine
           const audioBuffer = audioEngine.getAudioBuffer();
-          console.log('[WaveformDisplay] Got audio buffer:', audioBuffer ? `${audioBuffer.duration}s, ${audioBuffer.sampleRate}Hz` : 'null');
+
 
           if (!audioBuffer) {
             console.warn('[WaveformDisplay] No audio buffer available for peak generation');
@@ -95,20 +95,20 @@ export const WaveformDisplay: React.FC = () => {
 
           // Target number of peaks (200 per second like before)
           const targetPeakCount = Math.ceil(duration * 200);
-          console.log('[WaveformDisplay] Target peak count:', targetPeakCount);
+
 
           // Use asynchronous peak calculation to avoid UI blocking
           const peaks = await calculatePeaksAsync(audioBuffer, targetPeakCount);
-          console.log('[WaveformDisplay] Peaks calculated:', peaks.length);
+
 
           setPeaks(peaks);
-          console.log('[WaveformDisplay] Peaks set successfully!');
+
         } catch (error) {
           console.error('[WaveformDisplay] Error generating peaks:', error);
           // Fallback to synchronous method
           const width = Math.ceil(duration * 200);
           const p = audioEngine.getPeaks(width);
-          console.log('[WaveformDisplay] Fallback peaks generated:', p.length);
+
           setPeaks(p);
         }
       };

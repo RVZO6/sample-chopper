@@ -76,7 +76,7 @@ export class YouTubeService {
         for (const source of YOUTUBE_API_SOURCES) {
             try {
                 const msg = `Checking ${source.name}...`;
-                console.log(msg);
+
                 onStatus?.(msg);
 
                 let url = '';
@@ -99,7 +99,7 @@ export class YouTubeService {
                     audioUrl = await this.handleInvidiousResponse(response);
                 }
 
-                console.log(`✓ Successfully fetched audio URL from ${source.name}`);
+
                 return {
                     url: audioUrl,
                     source: source.name,

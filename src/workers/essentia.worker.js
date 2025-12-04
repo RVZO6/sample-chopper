@@ -13,7 +13,7 @@ let essentia = null;
 // Initialize Essentia
 EssentiaWASM().then((wasmModule) => {
     essentia = new Essentia(wasmModule);
-    console.log('Essentia initialized in worker');
+
     self.postMessage({ type: 'READY' });
 });
 
@@ -29,27 +29,27 @@ self.onmessage = function (e) {
 
         try {
             const { pcm, originalSampleRate } = payload;
-            console.log('[Worker] Received PCM data, samples:', pcm.length, 'Rate:', originalSampleRate);
+
 
             // Convert Float32Array to Essentia Vector
-            console.log('[Worker] Converting to vector...');
+
             let signal;
 
             if (originalSampleRate !== 16000) {
-                console.log('[Worker] Resampling to 16kHz using JS linear interpolation...');
+
                 // Use custom JS resampler to avoid WASM memory/exception issues
                 const resampledPcm = resampleLinear(pcm, originalSampleRate, 16000);
 
                 // Convert to vector
                 signal = essentia.arrayToVector(resampledPcm);
-                console.log('[Worker] Resampling complete, new length:', resampledPcm.length);
+
             } else {
                 signal = essentia.arrayToVector(pcm);
             }
 
             // 1. Key Detection
             // Parameters from integration guide (EXACTLY as specified)
-            console.log('[Worker] Running KeyExtractor...');
+
             const keyData = essentia.KeyExtractor(
                 signal,
                 true,      // averageDetuningCorrection
@@ -70,7 +70,7 @@ self.onmessage = function (e) {
 
             // 2. BPM Detection
             // Parameters from integration guide (EXACTLY as specified)
-            console.log('[Worker] Running PercivalBpmEstimator...');
+
             const bpmData = essentia.PercivalBpmEstimator(
                 signal,
                 1024,    // frameSize
@@ -85,7 +85,7 @@ self.onmessage = function (e) {
             // Clean up vector to free memory
             signal.delete();
 
-            console.log('[Worker] Analysis complete!');
+
             self.postMessage({
                 type: 'RESULT',
                 payload: {

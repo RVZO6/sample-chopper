@@ -316,14 +316,14 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const performAnalysis = async (file: File) => {
         try {
-            console.log('[Analysis] Starting audio analysis...');
+
             const arrayBuffer = await file.arrayBuffer();
 
             // Decode on main thread (async) - this is the only way without extra libs
             // We avoid OfflineAudioContext resampling here to prevent blocking
             const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            console.log('[Analysis] Audio decoded, duration:', audioBuffer.duration);
+
 
             // Get mono data
             const pcmData = audioBuffer.getChannelData(0);
@@ -334,10 +334,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
             worker.onmessage = (e) => {
                 const { type, payload } = e.data;
-                console.log('[Analysis] Worker message:', type);
+
 
                 if (type === 'READY') {
-                    console.log('[Analysis] Worker ready, sending PCM data...');
+
                     // Transfer the PCM data to worker (zero-copy)
                     worker.postMessage({
                         type: 'ANALYZE',
@@ -347,7 +347,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         }
                     }, [pcmData.buffer]); // Transfer ownership
                 } else if (type === 'RESULT') {
-                    console.log('[Analysis] Analysis complete!', payload);
+
                     setDetectedBpm(payload.bpm);
                     setCurrentBpm(payload.bpm);
 

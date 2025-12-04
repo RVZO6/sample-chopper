@@ -115,7 +115,7 @@ export class AudioEngine {
                     throw new Error(`Failed to load rubberband.wasm: ${response.statusText}`);
                 }
                 this.wasmBytes = await response.arrayBuffer();
-                console.log('AudioEngine: Rubber Band Worklet and WASM loaded');
+
             } catch (err) {
                 console.error('AudioEngine: Failed to initialize AudioWorklet', err);
                 throw err;
@@ -150,7 +150,7 @@ export class AudioEngine {
                 .then(async buffer => {
                     this.audioBuffer = buffer;
                     // No need for reversed buffer anymore, handled by Worklet
-                    console.log('Audio buffer loaded successfully, duration:', buffer.duration);
+
 
                     // Send buffer to Worklet
                     await this.initAudioWorklet();
@@ -199,7 +199,7 @@ export class AudioEngine {
 
                     const buffer = await this.audioContext.decodeAudioData(arrayBuffer);
                     this.audioBuffer = buffer;
-                    console.log('Audio buffer loaded from file successfully, duration:', buffer.duration);
+
 
                     // Send buffer to Worklet
                     await this.initAudioWorklet();

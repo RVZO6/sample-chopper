@@ -113,11 +113,11 @@ class RubberBandProcessor extends AudioWorkletProcessor {
 
         this.initialized = true;
         this.port.postMessage({ type: 'ready' });
-        console.log("RubberBandProcessor: Initialized");
+
     }
 
     loadAudio(left, right) {
-        console.log(`RubberBandProcessor: Loading audio source. Length: ${left.length} frames.`);
+
         // Store the full audio buffer
         this.audioSource = [left, right || left];
         this.sourceLength = left.length;
@@ -153,7 +153,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
         // Clamp playEnd
         this.playEnd = Math.max(0, Math.min(this.sourceLength, this.playEnd));
 
-        console.log(`RubberBandProcessor: Playing. Start: ${this.playhead}, End: ${this.playEnd}, Reverse: ${this.isReverse}`);
+
     }
 
     stopPlayback() {
@@ -323,7 +323,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
             if (remaining <= 0) {
                 this.isPlaying = false;
                 this.port.postMessage({ type: 'complete' });
-                console.log("RubberBandProcessor: Playback complete");
+
             }
         }
 

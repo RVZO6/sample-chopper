@@ -41,7 +41,7 @@ export const Header: React.FC = () => {
 
     try {
       const result = await YouTubeService.getBestAudioUrl(videoId, (msg) => setStatusMessage(msg));
-      console.log(`🎵 Using: ${result.source} (${result.apiType})`);
+
       setStatusMessage(`${result.source} - Starting download...`);
 
       // Try to fetch with a CORS proxy if direct fetch fails
