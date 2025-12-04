@@ -17,6 +17,8 @@ export interface AudioFetchResult {
     url: string;
     source: string;
     apiType: APIType;
+    mimeType: string;
+    extension: string;
 }
 
 interface PipedStream {
@@ -56,17 +58,31 @@ export class YouTubeService {
         return (match && match[7].length === 11) ? match[7] : null;
     }
 
-    private static async handlePipedResponse(response: Response): Promise<string> {
+    private static async handlePipedResponse(response: Response): Promise<{ url: string, mimeType: string, extension: string }> {
         const data = await response.json() as PipedResponse;
         if (!data.audioStreams || data.audioStreams.length === 0) {
             throw new Error('[YouTubeService] No audio streams found in Piped response');
         }
         // Sort by bitrate descending
         const sorted = data.audioStreams.sort((a, b) => b.bitrate - a.bitrate);
-        return sorted[0].url;
+        const stream = sorted[0];
+
+        // Determine extension based on mimeType
+        let extension = 'mp3'; // Default
+        if (stream.mimeType === 'audio/mp4' || stream.mimeType.includes('mp4')) {
+            extension = 'm4a';
+        } else if (stream.mimeType === 'audio/webm' || stream.mimeType.includes('webm')) {
+            extension = 'webm';
+        }
+
+        return {
+            url: stream.url,
+            mimeType: stream.mimeType,
+            extension
+        };
     }
 
-    private static async handleInvidiousResponse(response: Response): Promise<string> {
+    private static async handleInvidiousResponse(response: Response): Promise<{ url: string, mimeType: string, extension: string }> {
         const data = await response.json() as InvidiousResponse;
         if (!data.adaptiveFormats || data.adaptiveFormats.length === 0) {
             throw new Error('[YouTubeService] No adaptive formats found in Invidious response');
@@ -82,7 +98,22 @@ export class YouTubeService {
 
         // Sort by bitrate descending
         const sorted = audioStreams.sort((a, b) => b.bitrate - a.bitrate);
-        return sorted[0].url;
+        const stream = sorted[0];
+
+        // Determine extension based on mimeType
+        let extension = 'mp3'; // Default
+        const mime = stream.mimeType || stream.type || '';
+        if (mime.includes('mp4')) {
+            extension = 'm4a';
+        } else if (mime.includes('webm')) {
+            extension = 'webm';
+        }
+
+        return {
+            url: stream.url,
+            mimeType: mime.split(';')[0], // Clean up mime type (remove codecs)
+            extension
+        };
     }
 
     /**
@@ -111,18 +142,20 @@ export class YouTubeService {
                     throw new Error(`HTTP ${response.status} ${response.statusText}`);
                 }
 
-                let audioUrl = '';
+                let resultData: { url: string, mimeType: string, extension: string };
                 if (source.type === 'piped') {
-                    audioUrl = await this.handlePipedResponse(response);
+                    resultData = await this.handlePipedResponse(response);
                 } else {
-                    audioUrl = await this.handleInvidiousResponse(response);
+                    resultData = await this.handleInvidiousResponse(response);
                 }
 
 
                 return {
-                    url: audioUrl,
+                    url: resultData.url,
                     source: source.name,
-                    apiType: source.type
+                    apiType: source.type,
+                    mimeType: resultData.mimeType,
+                    extension: resultData.extension
                 };
 
             } catch (error) {
