@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Knob } from './Knob';
 import { useAudio } from '@/context/AudioContext';
+import { mapAttackToSeconds, mapReleaseToSeconds, formatTime } from '@/lib/audioUtils';
 
 export const ControlPanel: React.FC = () => {
   const {
@@ -18,6 +19,8 @@ export const ControlPanel: React.FC = () => {
   const isReverse = selectedPad?.params.isReverse ?? false;
 
   const [isDraggingTime, setIsDraggingTime] = useState(false);
+  const [isInteractingAttack, setIsInteractingAttack] = useState(false);
+  const [isInteractingRelease, setIsInteractingRelease] = useState(false);
 
   // Time Stretch drag logic
   const handleTimeStretchDrag = (e: React.MouseEvent) => {
@@ -52,14 +55,16 @@ export const ControlPanel: React.FC = () => {
       {/* Envelope Section */}
       <div className="flex items-center gap-6">
         <Knob
-          label="Attack"
+          label={isInteractingAttack ? formatTime(mapAttackToSeconds(attack)) : "Attack"}
           value={attack}
           onChange={(val) => updateSelectedPadParams({ attack: val })}
+          onInteractChange={setIsInteractingAttack}
         />
         <Knob
-          label="Release"
+          label={isInteractingRelease ? formatTime(mapReleaseToSeconds(release)) : "Release"}
           value={release}
           onChange={(val) => updateSelectedPadParams({ release: val })}
+          onInteractChange={setIsInteractingRelease}
         />
       </div>
 

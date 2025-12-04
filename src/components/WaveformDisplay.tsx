@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAudio } from '@/context/AudioContext';
+import { useAudio, useAudioTime } from '@/context/AudioContext';
 
 export const WaveformDisplay: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { audioEngine, currentTime, duration, seek, play, pause, isPlaying, pads, setPadCuePoint } = useAudio();
+  const currentTime = useAudioTime();
+  const { audioEngine, duration, seek, play, pause, isPlaying, pads, setPadCuePoint } = useAudio();
   const [peaks, setPeaks] = useState<number[]>([]);
   const [zoom, setZoom] = useState(100); // Pixels per second
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
