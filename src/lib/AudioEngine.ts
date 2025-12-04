@@ -125,108 +125,22 @@ export class AudioEngine {
         return this.initPromise;
     }
 
-    async load(url: string): Promise<void> {
-        // Start init early
-        this.initAudioWorklet();
+    async setAudioBuffer(buffer: AudioBuffer): Promise<void> {
+        this.audioBuffer = buffer;
 
-        return new Promise((resolve, reject) => {
-            fetch(url)
-                .then(r => {
-                    if (!r.ok) {
-                        throw new Error(`Failed to fetch audio file: ${r.status} ${r.statusText}`);
-                    }
-                    return r.arrayBuffer();
-                })
-                .then(ab => {
-                    if (!this.audioContext) {
-                        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-                        // Re-create master gain if context was recreated (unlikely but safe)
-                        this.masterGain = this.audioContext.createGain();
-                        this.masterGain.gain.value = this.masterVolume;
-                        this.masterGain.connect(this.audioContext.destination);
-                    }
-                    return this.audioContext.decodeAudioData(ab);
-                })
-                .then(async buffer => {
-                    this.audioBuffer = buffer;
-                    // No need for reversed buffer anymore, handled by Worklet
+        // Initialize Worklet if needed
+        await this.initAudioWorklet();
 
+        if (this.workletNode) {
+            const left = buffer.getChannelData(0);
+            const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
 
-                    // Send buffer to Worklet
-                    await this.initAudioWorklet();
-                    if (this.workletNode) {
-                        const left = buffer.getChannelData(0);
-                        const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
-
-                        this.workletNode.port.postMessage({
-                            type: 'load',
-                            left: left,
-                            right: right
-                        });
-                    }
-
-                    resolve();
-                })
-                .catch(err => {
-                    console.error('Error loading audio buffer:', err);
-                    reject(err);
-                });
-        });
-    }
-
-    async loadFromFile(file: File): Promise<void> {
-        // Start init early
-        this.initAudioWorklet();
-
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-
-            reader.onload = async (e) => {
-                if (!e.target?.result) {
-                    reject(new Error('Failed to read file'));
-                    return;
-                }
-
-                try {
-                    const arrayBuffer = e.target.result as ArrayBuffer;
-
-                    if (!this.audioContext) {
-                        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-                        this.masterGain = this.audioContext.createGain();
-                        this.masterGain.gain.value = this.masterVolume;
-                        this.masterGain.connect(this.audioContext.destination);
-                    }
-
-                    const buffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                    this.audioBuffer = buffer;
-
-
-                    // Send buffer to Worklet
-                    await this.initAudioWorklet();
-                    if (this.workletNode) {
-                        const left = buffer.getChannelData(0);
-                        const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
-
-                        this.workletNode.port.postMessage({
-                            type: 'load',
-                            left: left,
-                            right: right
-                        });
-                    }
-
-                    resolve();
-                } catch (err) {
-                    console.error('Error loading audio from file:', err);
-                    reject(err);
-                }
-            };
-
-            reader.onerror = () => {
-                reject(new Error('Failed to read file'));
-            };
-
-            reader.readAsArrayBuffer(file);
-        });
+            this.workletNode.port.postMessage({
+                type: 'load',
+                left: left,
+                right: right
+            });
+        }
     }
 
     private _stopPlayback(preservePadId: boolean = false) {
@@ -234,44 +148,22 @@ export class AudioEngine {
             this.workletNode.port.postMessage({ type: 'stop' });
         }
 
-        // Apply release if playing?
-        // For now, hard stop is safer for rapid re-triggering,
-        // but we could ramp down envelopeGain if we wanted a smooth stop.
-        // However, _stopPlayback is often called right before _startPlayback,
-        // so we want to be ready to play immediately.
-
         this.state.isPlaying = false;
-        // Only clear currentPadId if not preserving (allows immediate restart of same pad)
         if (!preservePadId) {
             this.state.currentPadId = null;
         }
 
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-            this.updateInterval = null;
-        }
-
         // Reset position tracking
         this.lastUpdateTime = 0;
-        this.accumulatedPosition = 0;
+        // accumulatedPosition is NOT reset here because we might want to resume or we are just stopping.
+        // Actually, if we stop, we usually reset or pause.
+        // If we pause, we keep the position.
+        // If we stop completely, we might reset.
+        // The previous code reset it. Let's keep it consistent with previous behavior for now, 
+        // but `pause()` handles the offset.
     }
 
-    private _startTimeUpdate() {
-        this._stopTimeUpdate();
-        this.updateInterval = window.setInterval(() => {
-            if (this.state.isPlaying) {
-                // Time is updated in getCurrentTime()
-                this.getCurrentTime(); // This checks for end of playback
-            }
-        }, 16); // ~60fps
-    }
-
-    private _stopTimeUpdate() {
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-            this.updateInterval = null;
-        }
-    }
+    // Polling methods removed (_startTimeUpdate, _stopTimeUpdate)
 
     // ===== GLOBAL TRANSPORT CONTROLS =====
 
@@ -304,7 +196,7 @@ export class AudioEngine {
 
         // Reset position tracking
         this.lastUpdateTime = 0;
-        this.accumulatedPosition = 0;
+        this.accumulatedPosition = this.globalOffset; // Start from current offset
 
         // Start playback
         await this._startPlayback(this.globalOffset, duration, this.state.params);
@@ -345,7 +237,7 @@ export class AudioEngine {
 
         // Reset position tracking
         this.lastUpdateTime = 0;
-        this.accumulatedPosition = 0;
+        this.accumulatedPosition = this.globalOffset;
 
         if (wasPlaying) {
             this.play();
@@ -354,25 +246,39 @@ export class AudioEngine {
 
     getCurrentTime(): number {
         if (!this.state.isPlaying || !this.audioContext) {
+            if (this.state.mode === 'pad') {
+                // For pad mode, return relative to cue point? Or just accumulated?
+                // Usually we want to see where we are.
+                return this.accumulatedPosition;
+            }
             return Math.max(0, Math.min(this.getDuration(), this.globalOffset));
         }
 
-        // Track position incrementally to handle live speed changes
         const now = this.audioContext.currentTime;
 
         // Initialize on first call after play starts
         if (this.lastUpdateTime === 0) {
             this.lastUpdateTime = this.state.startTime;
-            if (this.state.mode === 'pad') {
-                this.accumulatedPosition = this.state.cuePoint;
-            } else {
-                this.accumulatedPosition = this.globalOffset;
-            }
+            // accumulatedPosition is already set in play() or playPad()
         }
 
-        // Calculate how much time has passed since last update
+        // Calculate time delta
         const timeDelta = now - this.lastUpdateTime;
 
+        // Update position
+        this.updatePosition(timeDelta);
+
+        // Update last update time
+        this.lastUpdateTime = now;
+
+        // Check for completion
+        this.checkPlaybackCompletion(now);
+
+        // Always clamp to valid range
+        return Math.max(0, Math.min(this.getDuration(), this.accumulatedPosition));
+    }
+
+    private updatePosition(timeDelta: number) {
         // Calculate effective speed (pad speed * global speed)
         const effectiveSpeed = this.state.params.speed * this.globalSpeed;
 
@@ -382,11 +288,13 @@ export class AudioEngine {
         } else {
             this.accumulatedPosition += timeDelta * effectiveSpeed;
         }
+    }
 
-        // Update last update time
-        this.lastUpdateTime = now;
+    private checkPlaybackCompletion(now: number) {
+        // Calculate effective speed
+        const effectiveSpeed = this.state.params.speed * this.globalSpeed;
 
-        // Calculate elapsed in original time for end detection
+        // Calculate elapsed in original time
         const elapsed = now - this.state.startTime;
         const playbackElapsed = elapsed * effectiveSpeed;
 
@@ -394,22 +302,22 @@ export class AudioEngine {
         if (playbackElapsed >= this.state.duration - 0.01) {
             this.state.isPlaying = false;
             this._stopPlayback();
-            // Return final position
+
+            // Set final position
             if (this.state.params.reverse) {
-                return 0;
+                this.accumulatedPosition = 0;
             } else {
                 if (this.state.mode === 'pad') {
-                    return Math.min(this.getDuration(), this.state.cuePoint + this.state.duration);
+                    this.accumulatedPosition = Math.min(this.getDuration(), this.state.cuePoint + this.state.duration);
                 } else {
-                    return Math.min(this.getDuration(), this.globalOffset + this.state.duration);
+                    this.accumulatedPosition = Math.min(this.getDuration(), this.globalOffset + this.state.duration);
+                    this.globalOffset = this.accumulatedPosition; // Update global offset
                 }
             }
+
             // Notify stop
             if (this._onStop) this._onStop();
         }
-
-        // Always clamp to valid range
-        return Math.max(0, Math.min(this.getDuration(), this.accumulatedPosition));
     }
 
     getDuration(): number {
@@ -468,7 +376,7 @@ export class AudioEngine {
 
         // Reset position tracking
         this.lastUpdateTime = 0;
-        this.accumulatedPosition = 0;
+        this.accumulatedPosition = cuePoint;
 
         // Start playback
         await this._startPlayback(cuePoint, duration, params);
@@ -491,7 +399,6 @@ export class AudioEngine {
                 // Stop worklet and return to cue point (but only if another pad didn't start)
                 setTimeout(() => {
                     // Only stop and return if we're still in pad mode with the SAME pad
-                    // If a new pad was triggered, this.state.currentPadId will be different
                     if (this.state.mode === 'pad' && this.state.currentPadId === currentPadId) {
                         this._stopPlayback();
                         // Return to the pad's cue point (paused)
@@ -499,11 +406,9 @@ export class AudioEngine {
                         this.state.mode = 'global';
                         this.state.isPlaying = false;
                     }
-                    // If currentPadId changed, a new pad is already playing, so do nothing
-                }, 15); // Short delay for fade
+                }, 15);
             } else {
                 this._stopPlayback();
-                // Return to the pad's cue point (paused)
                 this.globalOffset = cuePoint;
                 this.state.mode = 'global';
                 this.state.isPlaying = false;
@@ -579,23 +484,18 @@ export class AudioEngine {
             }
 
             // Connect Worklet -> Envelope -> Master -> Destination
-            // Disconnect first to be safe
             try { this.workletNode.disconnect(); } catch (e) { }
             this.workletNode.connect(this.envelopeGain);
 
             // Apply Envelope
             const now = this.audioContext.currentTime;
-            const attack = params.attack || 0.005; // Min attack to avoid clicks
+            const attack = params.attack || 0.005;
             const release = params.release || 0.01;
             const volume = params.volume !== undefined ? params.volume : 1.0;
 
             this.envelopeGain.gain.cancelScheduledValues(now);
             this.envelopeGain.gain.setValueAtTime(0, now);
             this.envelopeGain.gain.linearRampToValueAtTime(volume, now + attack);
-            // We don't schedule release here because we don't know when the note ends in Trigger mode
-            // (it plays full duration). But we should ramp down at the very end of duration?
-            // Or just let it play.
-            // For Gate mode, stopPad() handles the release.
 
             // Calculate samples
             const sampleRate = this.audioBuffer.sampleRate;
@@ -611,7 +511,6 @@ export class AudioEngine {
             });
 
             // Set parameters
-            // Combine pad pitch with global pitch offset
             const totalPitch = params.pitch + this.globalPitchOffset;
             const pitchRatio = totalPitch === 0 ? 1.0 : Math.pow(2, totalPitch / 12);
             const tempo = params.speed * this.globalSpeed;
@@ -626,7 +525,7 @@ export class AudioEngine {
             this.state.duration = duration;
             this.state.isPlaying = true;
 
-            this._startTimeUpdate();
+            // No polling started here anymore!
 
         } catch (error) {
             console.error('Error starting playback:', error);
