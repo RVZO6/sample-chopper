@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAudio } from '@/context/AudioContext';
-import { YouTubeService } from '@/src/lib/YouTubeService';
+import { YouTubeService } from '@/lib/YouTubeService';
 
 const KEYS_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const KEYS_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
