@@ -539,6 +539,24 @@ export const WaveformDisplay: React.FC = () => {
   // Render
   // ============================================================================
 
+  // Memoize visible flag positions to avoid inline calculations on each render
+  const visibleFlags = useMemo(() => {
+    if (dimensions.width <= 0) return [];
+
+    const centerX = dimensions.width / 2;
+    const currentPixel = currentTime * zoom;
+    const startX = centerX - currentPixel;
+
+    return pads
+      .filter(pad => pad.cuePoint !== null)
+      .map(pad => {
+        const padPixel = pad.cuePoint! * zoom;
+        const x = startX + padPixel;
+        return { pad, x };
+      })
+      .filter(({ x }) => x >= -20 && x <= dimensions.width + 20);
+  }, [pads, zoom, currentTime, dimensions.width]);
+
   const cursorStyle = useMemo(() => {
     if (draggingFlagId) return 'ew-resize';
     if (isDragging) return 'grabbing';
@@ -580,53 +598,35 @@ export const WaveformDisplay: React.FC = () => {
 
 
 
-      {/* Interactive Flag Overlays */}
-      {pads.map(pad => {
-        if (pad.cuePoint === null) return null;
-
-        const container = containerRef.current;
-        if (!container) return null;
-
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        const centerX = width / 2;
-        const pixelsPerSecond = zoom;
-        const currentPixel = currentTime * pixelsPerSecond;
-        const startX = centerX - currentPixel;
-        const padPixel = pad.cuePoint * pixelsPerSecond;
-        const x = startX + padPixel;
-
-        if (x < -20 || x > width + 20) return null;
-
-        return (
-          <React.Fragment key={pad.id}>
-            <div
-              onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
-              className="absolute cursor-ew-resize hover:opacity-50"
-              style={{
-                left: `${x - 6}px`,
-                top: 0,
-                width: '20px',
-                height: '20px',
-                pointerEvents: 'auto'
-              }}
-              title={`Drag to reposition ${pad.label}`}
-            />
-            <div
-              onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
-              className="absolute cursor-ew-resize hover:opacity-50"
-              style={{
-                left: `${x - 6}px`,
-                bottom: 0,
-                width: '20px',
-                height: '20px',
-                pointerEvents: 'auto'
-              }}
-              title={`Drag to reposition ${pad.label}`}
-            />
-          </React.Fragment>
-        );
-      })}
+      {/* Interactive Flag Overlays - positions memoized */}
+      {visibleFlags.map(({ pad, x }) => (
+        <React.Fragment key={pad.id}>
+          <div
+            onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
+            className="absolute cursor-ew-resize hover:opacity-50"
+            style={{
+              left: `${x - 6}px`,
+              top: 0,
+              width: '20px',
+              height: '20px',
+              pointerEvents: 'auto'
+            }}
+            title={`Drag to reposition ${pad.label}`}
+          />
+          <div
+            onMouseDown={(e) => handleFlagMouseDown(pad.id, e)}
+            className="absolute cursor-ew-resize hover:opacity-50"
+            style={{
+              left: `${x - 6}px`,
+              bottom: 0,
+              width: '20px',
+              height: '20px',
+              pointerEvents: 'auto'
+            }}
+            title={`Drag to reposition ${pad.label}`}
+          />
+        </React.Fragment>
+      ))}
     </div>
   );
 };

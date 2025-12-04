@@ -142,6 +142,7 @@ const AudioTimeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     const { audioEngine } = context;
     const [currentTime, setCurrentTime] = useState(0);
+    const lastTimeRef = useRef(0);
 
     useEffect(() => {
         let animationFrame: number | null = null;
@@ -152,9 +153,11 @@ const AudioTimeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
             try {
                 const newTime = audioEngine.getCurrentTime();
-                // Only update if changed significantly? No, we need smooth animation.
-                // React batching might help, but 60fps is 60fps.
-                setCurrentTime(newTime);
+                // Only update if changed by more than 1ms to reduce unnecessary re-renders
+                if (Math.abs(newTime - lastTimeRef.current) > 0.001) {
+                    lastTimeRef.current = newTime;
+                    setCurrentTime(newTime);
+                }
                 animationFrame = requestAnimationFrame(update);
             } catch (error) {
                 console.error('Error in time update loop:', error);
