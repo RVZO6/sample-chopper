@@ -4,6 +4,7 @@ interface PadProps {
   label: string;
   colorClass: string;
   isEmpty?: boolean;
+  isPressed?: boolean;
   onMouseDown?: (e: React.MouseEvent) => void;
   onMouseUp?: () => void;
   onMouseLeave?: () => void;
@@ -14,19 +15,23 @@ export const Pad: React.FC<PadProps> = ({
   label,
   colorClass,
   isEmpty = false,
+  isPressed = false,
   onMouseDown,
   onMouseUp,
   onMouseLeave,
   onContextMenu
 }) => {
-  const baseClasses = "rounded-md relative transform transition-all duration-75 flex items-center justify-center h-full w-full min-h-16";
+  const baseClasses = "rounded-md relative transform transition-all duration-75 flex items-center justify-center h-full w-full min-h-16 outline-none focus:outline-none";
 
   // Different styling for empty vs active pads
   const activeStyle = "shadow-pad-raised active:shadow-pad-pressed active:translate-y-px cursor-pointer hover:brightness-110";
   const emptyStyle = "bg-pad-empty-bg shadow-pad-empty cursor-pointer opacity-100 hover:brightness-110";
 
+  // Apply pressed state for keyboard triggers
+  const pressedStyle = isPressed ? "shadow-pad-pressed translate-y-px brightness-90" : "";
+
   // If empty, use emptyStyle, otherwise use the passed colorClass + activeStyle
-  const combinedClasses = `${baseClasses} ${isEmpty ? emptyStyle : colorClass + ' ' + activeStyle}`;
+  const combinedClasses = `${baseClasses} ${isEmpty ? emptyStyle : colorClass + ' ' + activeStyle} ${pressedStyle}`;
 
   return (
     <button

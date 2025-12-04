@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pad } from './Pad';
 import { useAudio, useAudioTime } from '@/context/AudioContext';
 
@@ -10,6 +10,9 @@ export const PadGrid: React.FC = () => {
   const activeKeysRef = useRef<Set<string>>(new Set());
   const currentlyPlayingPadRef = useRef<string | null>(null);
 
+  // Track pressed pads for visual feedback
+  const [pressedPads, setPressedPads] = useState<Set<string>>(new Set());
+
   // Keyboard support
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -20,6 +23,9 @@ export const PadGrid: React.FC = () => {
       if (pad) {
         e.preventDefault();
         activeKeysRef.current.add(pad.id);
+
+        // Visual feedback - add to pressed set
+        setPressedPads(prev => new Set(prev).add(pad.id));
 
         if (pad.cuePoint !== null) {
           triggerPad(pad.id);
@@ -35,6 +41,13 @@ export const PadGrid: React.FC = () => {
       if (pad) {
         e.preventDefault();
         activeKeysRef.current.delete(pad.id);
+
+        // Visual feedback - remove from pressed set
+        setPressedPads(prev => {
+          const next = new Set(prev);
+          next.delete(pad.id);
+          return next;
+        });
 
         // Only stop if this is the CURRENTLY PLAYING pad
         if (playMode === 'gate' && pad.cuePoint !== null && currentlyPlayingPadRef.current === pad.id) {
@@ -97,6 +110,7 @@ export const PadGrid: React.FC = () => {
           label={pad.label}
           colorClass={pad.color}
           isEmpty={pad.cuePoint === null}
+          isPressed={pressedPads.has(pad.id)}
           onMouseDown={(e) => handlePadMouseDown(pad.id, e)}
           onMouseUp={() => handlePadMouseUp(pad.id)}
           onMouseLeave={() => handlePadMouseLeave(pad.id)}
