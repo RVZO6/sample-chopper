@@ -15,6 +15,12 @@ export const PadGrid: React.FC = () => {
   const [pressedPads, setPressedPads] = useState<Set<string>>(new Set());
 
 
+  // Keep track of current time without triggering re-renders of the effect
+  const currentTimeRef = useRef(currentTime);
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
@@ -29,6 +35,9 @@ export const PadGrid: React.FC = () => {
         if (pad.cuePoint !== null) {
           triggerPad(pad.id);
           currentlyPlayingPadRef.current = pad.id;
+        } else {
+          // Create new pad at current time if empty
+          setPadCuePoint(pad.id, currentTimeRef.current);
         }
       }
     };
@@ -59,7 +68,7 @@ export const PadGrid: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [pads, triggerPad, stopPad, playMode]);
+  }, [pads, triggerPad, stopPad, playMode, setPadCuePoint]);
 
   const handlePadMouseDown = (id: string, e: React.MouseEvent) => {
     if (e.button !== 0 || e.ctrlKey) return;
