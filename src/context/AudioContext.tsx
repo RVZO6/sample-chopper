@@ -29,38 +29,38 @@ export interface Pad {
 
 const DEFAULT_PARAMS: PadParams = {
     attack: 0,
-    release: 30,
+    release: 0,
     timeStretch: 100,
     keyShift: 0,
     isReverse: false,
 };
 
-// Initial Pad Configuration
+// Initial Pad Configuration - Rainbow gradient across 20 pads
 const INITIAL_PADS: Pad[] = [
-    // Row 1
-    { id: 'pad-1', label: 'Q', key: 'KeyQ', color: 'bg-red-700', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-2', label: 'W', key: 'KeyW', color: 'bg-yellow-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-3', label: 'E', key: 'KeyE', color: 'bg-fuchsia-700', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-4', label: 'R', key: 'KeyR', color: 'bg-orange-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-5', label: 'T', key: 'KeyT', color: 'bg-green-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    // Row 2
+    // Row 1 - Reds to Oranges
+    { id: 'pad-1', label: 'Q', key: 'KeyQ', color: 'bg-red-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-2', label: 'W', key: 'KeyW', color: 'bg-red-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-3', label: 'E', key: 'KeyE', color: 'bg-orange-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-4', label: 'R', key: 'KeyR', color: 'bg-orange-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-5', label: 'T', key: 'KeyT', color: 'bg-amber-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    // Row 2 - Yellows to Greens
     { id: 'pad-6', label: 'A', key: 'KeyA', color: 'bg-yellow-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-7', label: 'S', key: 'KeyS', color: 'bg-red-800', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-8', label: 'D', key: 'KeyD', color: 'bg-green-700', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-9', label: 'F', key: 'KeyF', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-10', label: 'G', key: 'KeyG', color: 'bg-red-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    // Row 3
-    { id: 'pad-11', label: 'Z', key: 'KeyZ', color: 'bg-green-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-12', label: 'X', key: 'KeyX', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-13', label: 'C', key: 'KeyC', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-14', label: 'V', key: 'KeyV', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-15', label: 'B', key: 'KeyB', color: 'bg-red-900', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    // Row 4
-    { id: 'pad-16', label: 'Y', key: 'KeyY', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-17', label: 'U', key: 'KeyU', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-18', label: 'I', key: 'KeyI', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-19', label: 'O', key: 'KeyO', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
-    { id: 'pad-20', label: 'P', key: 'KeyP', color: 'bg-surface-dark', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-7', label: 'S', key: 'KeyS', color: 'bg-lime-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-8', label: 'D', key: 'KeyD', color: 'bg-green-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-9', label: 'F', key: 'KeyF', color: 'bg-emerald-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-10', label: 'G', key: 'KeyG', color: 'bg-teal-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    // Row 3 - Teals to Blues
+    { id: 'pad-11', label: 'Z', key: 'KeyZ', color: 'bg-cyan-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-12', label: 'X', key: 'KeyX', color: 'bg-sky-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-13', label: 'C', key: 'KeyC', color: 'bg-blue-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-14', label: 'V', key: 'KeyV', color: 'bg-indigo-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-15', label: 'B', key: 'KeyB', color: 'bg-violet-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    // Row 4 - Purples to Pinks
+    { id: 'pad-16', label: 'Y', key: 'KeyY', color: 'bg-purple-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-17', label: 'U', key: 'KeyU', color: 'bg-fuchsia-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-18', label: 'I', key: 'KeyI', color: 'bg-pink-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-19', label: 'O', key: 'KeyO', color: 'bg-rose-500', cuePoint: null, params: { ...DEFAULT_PARAMS } },
+    { id: 'pad-20', label: 'P', key: 'KeyP', color: 'bg-red-400', cuePoint: null, params: { ...DEFAULT_PARAMS } },
 ];
 
 const flatToSharpMap: { [key: string]: string } = {

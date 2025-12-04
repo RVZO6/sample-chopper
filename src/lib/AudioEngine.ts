@@ -388,15 +388,18 @@ export class AudioEngine {
             // Store the cue point before stopping so we can return to it
             const cuePoint = this.state.cuePoint;
             const currentPadId = this.state.currentPadId;
+            // Use the actual release time from the pad's params
+            const releaseTime = this.state.params.release || 0.01;
 
-            // Quick fade out for smooth release
+            // Fade out using the pad's release envelope
             if (this.envelopeGain && this.audioContext) {
                 const now = this.audioContext.currentTime;
                 this.envelopeGain.gain.cancelScheduledValues(now);
                 this.envelopeGain.gain.setValueAtTime(this.envelopeGain.gain.value, now);
-                this.envelopeGain.gain.linearRampToValueAtTime(0, now + 0.01); // Very quick 10ms fade
+                this.envelopeGain.gain.linearRampToValueAtTime(0, now + releaseTime);
 
-                // Stop worklet and return to cue point (but only if another pad didn't start)
+                // Stop worklet after release completes (add 5ms buffer)
+                const timeoutMs = Math.max(15, releaseTime * 1000 + 5);
                 setTimeout(() => {
                     // Only stop and return if we're still in pad mode with the SAME pad
                     if (this.state.mode === 'pad' && this.state.currentPadId === currentPadId) {
@@ -406,7 +409,7 @@ export class AudioEngine {
                         this.state.mode = 'global';
                         this.state.isPlaying = false;
                     }
-                }, 15);
+                }, timeoutMs);
             } else {
                 this._stopPlayback();
                 this.globalOffset = cuePoint;
