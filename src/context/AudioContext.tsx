@@ -10,6 +10,10 @@ declare global {
     }
 }
 
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
+
 export interface PadParams {
     attack: number;
     release: number;
@@ -35,7 +39,11 @@ const DEFAULT_PARAMS: PadParams = {
     isReverse: false,
 };
 
-// Initial Pad Configuration - Rainbow gradient across 20 pads
+// ============================================================================
+// Initial Configuration
+// ============================================================================
+
+// Rainbow gradient across 20 pads
 const INITIAL_PADS: Pad[] = [
     // Row 1 - Reds to Oranges
     { id: 'pad-1', label: 'Q', key: 'KeyQ', color: 'bg-red-600', cuePoint: null, params: { ...DEFAULT_PARAMS } },
@@ -132,6 +140,10 @@ interface WorkerMessage {
     payload: any;
 }
 
+// ============================================================================
+// Context Definition
+// ============================================================================
+
 const AudioStateContext = createContext<AudioContextType | undefined>(undefined);
 const AudioTimeContext = createContext<number>(0);
 
@@ -182,6 +194,14 @@ const AudioTimeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     );
 };
 
+// ============================================================================
+// Provider Component
+// ============================================================================
+
+/**
+ * Main audio provider component.
+ * Manages global audio state, playback logic, and analysis worker.
+ */
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [pads, setPads] = useState<Pad[]>(INITIAL_PADS);
     const [selectedPadId, setSelectedPadId] = useState<string | null>('pad-1');
@@ -405,25 +425,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setGlobalKeyShift(0);
             setError(null);
 
-            // Use AudioLoader
-            // We need a temporary context to decode if we want to pass buffer to engine?
-            // No, AudioLoader takes a context.
-            // But AudioEngine HAS a context.
-            // We should use AudioEngine's context to decode to ensure compatibility?
-            // Or just create a new one?
-            // AudioLoader.loadFromFile creates a new context if needed? 
-            // No, it takes a context.
-            // We can access `audioEngine['audioContext']` if we expose it, or just create a new one.
-            // Creating a new AudioContext for decoding is fine, but it's better to use the same one if possible.
-            // But `AudioEngine` manages its own context.
-            // Let's use `window.AudioContext` to create a temporary one for decoding, 
-            // OR expose `audioEngine.audioContext`.
-            // Actually, `AudioLoader.loadFromFile` takes a context.
-            // Let's just create a new context for decoding. It's safe.
-            // WAIT. `AudioEngine` expects a buffer decoded by a context.
-            // If we pass a buffer from Context A to Node in Context B, it works?
-            // Yes, AudioBuffer is just data.
-
+            // Use temporary context for decoding to ensure clean buffer state
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
             const buffer = await AudioLoader.loadFromFile(file, tempCtx);
             tempCtx.close(); // Clean up temp context
@@ -439,7 +441,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             performAnalysisWithReuse(buffer);
 
         } catch (error: any) {
-            console.error('Failed to load audio file:', error);
+            console.error('[AudioContext] Failed to load audio file:', error);
             setIsAnalyzing(false);
             setError(error.message || 'Failed to load audio file');
         }
@@ -493,6 +495,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
 };
 
+/**
+ * Hook to access the main audio state and controls.
+ * Throws error if used outside AudioProvider.
+ */
 export const useAudio = () => {
     const context = useContext(AudioStateContext);
     if (context === undefined) {
@@ -501,6 +507,10 @@ export const useAudio = () => {
     return context;
 };
 
+/**
+ * Hook to access the high-frequency current playback time.
+ * Optimized to prevent re-renders in components that don't need exact time.
+ */
 export const useAudioTime = () => {
     return useContext(AudioTimeContext);
 };

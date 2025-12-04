@@ -10,6 +10,10 @@ interface KnobProps {
   color?: string;
 }
 
+/**
+ * Rotary knob control with drag interaction.
+ * Displays value as rotation angle and supports vertical drag to adjust.
+ */
 export const Knob: React.FC<KnobProps> = ({
   label,
   min = 0,
@@ -24,7 +28,6 @@ export const Knob: React.FC<KnobProps> = ({
   const startY = useRef<number>(0);
   const startValue = useRef<number>(0);
 
-  // Map value (min-max) to rotation (-135 to 135)
   const percent = (value - min) / (max - min);
   const rotation = -135 + (percent * 270);
 
@@ -34,7 +37,6 @@ export const Knob: React.FC<KnobProps> = ({
 
       const dy = startY.current - e.clientY;
       const range = max - min;
-      // Sensitivity factor: 200px drag for full range
       const delta = (dy / 200) * range;
 
       let newValue = startValue.current + delta;
@@ -61,7 +63,6 @@ export const Knob: React.FC<KnobProps> = ({
     };
   }, [isDragging, max, min, onChange]);
 
-  // Notify parent when interaction state changes
   useEffect(() => {
     const isInteracting = isDragging || isHovering;
     onInteractChange?.(isInteracting);
@@ -96,8 +97,6 @@ export const Knob: React.FC<KnobProps> = ({
         >
           <div className={`w-full h-1/2 ${color} rounded-t-full shadow-[0_0_5px_rgba(239,68,68,0.5)]`}></div>
         </div>
-
-        {/* Removed center indent/dot */}
       </div>
       <span className={`text-xs font-semibold transition-colors ${isDragging ? 'text-primary' : 'text-gray-400 group-hover:text-gray-200'}`}>
         {label}

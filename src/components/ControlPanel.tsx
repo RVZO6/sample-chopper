@@ -3,6 +3,10 @@ import { Knob } from './Knob';
 import { useAudio } from '@/context/AudioContext';
 import { mapAttackToSeconds, mapReleaseToSeconds, formatTime } from '@/lib/audioUtils';
 
+/**
+ * Main control panel for audio parameters.
+ * Allows adjusting attack, release, time stretch, key shift, and playback direction for the selected pad.
+ */
 export const ControlPanel: React.FC = () => {
   const { pads, selectedPadId, updateSelectedPadParams } = useAudio();
 
@@ -19,7 +23,6 @@ export const ControlPanel: React.FC = () => {
   const [isInteractingAttack, setIsInteractingAttack] = useState(false);
   const [isInteractingRelease, setIsInteractingRelease] = useState(false);
 
-  // Time Stretch drag logic
   const handleTimeStretchDrag = (e: React.MouseEvent) => {
     if (!selectedPad) return; // Disable if no pad
     e.preventDefault();
@@ -49,7 +52,6 @@ export const ControlPanel: React.FC = () => {
 
   return (
     <div className="shrink-0 bg-surface-dark rounded-sm p-4 flex items-center justify-center gap-4 md:gap-8 shadow-ui-element-inset overflow-x-auto">
-      {/* Envelope Section */}
       <div className="flex items-center gap-6">
         <Knob
           label={isInteractingAttack ? formatTime(mapAttackToSeconds(attack)) : "Attack"}
@@ -67,7 +69,6 @@ export const ControlPanel: React.FC = () => {
 
       <div className="h-12 w-px bg-black/50 mx-2"></div>
 
-      {/* Pitch/Time Section */}
       <div className="flex items-center gap-6 md:gap-8">
         <div className="flex flex-col items-center gap-2">
           <div
@@ -104,7 +105,6 @@ export const ControlPanel: React.FC = () => {
 
       <div className="h-12 w-px bg-black/50 mx-2"></div>
 
-      {/* Transport/Direction */}
       <div className="flex flex-col items-center gap-2">
         <button
           onClick={() => updateSelectedPadParams({ isReverse: !isReverse })}
@@ -114,7 +114,6 @@ export const ControlPanel: React.FC = () => {
               : 'bg-surface-light text-gray-400 hover:text-white hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed'
             }`}
         >
-          {/* Reverse Icon - always backwards */}
           <span
             className="material-symbols-outlined text-4xl"
             style={{

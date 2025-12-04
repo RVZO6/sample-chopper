@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import tailwindcss from '@tailwindcss/vite';
 
+/**
+ * Vite configuration.
+ * Handles React plugin, Tailwind, path aliases, and copying WASM dependencies.
+ */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {

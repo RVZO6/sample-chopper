@@ -1,4 +1,9 @@
 import processorUrl from '../workers/rubberband.worklet.js?worker&url';
+
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
+
 export interface PadParams {
     speed: number;      // playback rate (0.5 to 2.0 recommended)
     pitch: number;      // pitch in semitones (-12 to +12)
@@ -20,6 +25,14 @@ interface PlaybackState {
     currentPadId: string | null; // Track which pad is currently playing
 }
 
+// ============================================================================
+// Audio Engine Class
+// ============================================================================
+
+/**
+ * Core audio engine handling Web Audio API interactions.
+ * Manages audio context, worklet nodes (Rubberband), and playback state.
+ */
 export class AudioEngine {
     // Audio buffer and context
     private audioBuffer: AudioBuffer | null = null;
@@ -117,7 +130,7 @@ export class AudioEngine {
                 this.wasmBytes = await response.arrayBuffer();
 
             } catch (err) {
-                console.error('AudioEngine: Failed to initialize AudioWorklet', err);
+                console.error('[AudioEngine] Failed to initialize AudioWorklet:', err);
                 throw err;
             }
         })();
@@ -163,9 +176,14 @@ export class AudioEngine {
         // but `pause()` handles the offset.
     }
 
-    // Polling methods removed (_startTimeUpdate, _stopTimeUpdate)
+    // ========================================================================
+    // Transport Controls
+    // ========================================================================
 
-    // ===== GLOBAL TRANSPORT CONTROLS =====
+    /**
+     * Starts global playback from the current cue point.
+     * Resets parameters to default global settings.
+     */
 
     async play() {
         if (this.state.isPlaying) return;
@@ -336,7 +354,14 @@ export class AudioEngine {
         return this.state.isPlaying && this.state.mode === 'global';
     }
 
-    // ===== PAD-SPECIFIC PLAYBACK =====
+    // ========================================================================
+    // Pad Playback
+    // ========================================================================
+
+    /**
+     * Triggers playback for a specific pad with custom parameters.
+     * Stops any existing pad playback.
+     */
 
     async playPad(padId: string, cuePoint: number, params: PadParams) {
         if (!this.audioBuffer || !this.audioContext) {
@@ -421,7 +446,14 @@ export class AudioEngine {
         }
     }
 
-    // ===== INTERNAL PLAYBACK METHODS =====
+    // ========================================================================
+    // Internal Methods
+    // ========================================================================
+
+    /**
+     * Internal method to initialize and start the audio worklet.
+     * Handles WASM loading, node connection, and parameter scheduling.
+     */
     private async _startPlayback(cuePoint: number, duration: number, params: PadParams) {
         if (!this.audioBuffer || !this.audioContext) return;
 
@@ -531,12 +563,19 @@ export class AudioEngine {
             // No polling started here anymore!
 
         } catch (error) {
-            console.error('Error starting playback:', error);
+            console.error('[AudioEngine] Error starting playback:', error);
             this.state.isPlaying = false;
         }
     }
 
-    // ===== WAVEFORM VISUALIZATION =====
+    // ========================================================================
+    // Visualization & Data
+    // ========================================================================
+
+    /**
+     * Calculates waveform peaks for visualization.
+     * @param width Number of data points to generate
+     */
 
     getPeaks(width: number): number[] {
         if (!this.audioBuffer) return [];

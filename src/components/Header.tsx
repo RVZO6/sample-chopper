@@ -5,6 +5,10 @@ import { YouTubeService } from '@/lib/YouTubeService';
 const KEYS_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const KEYS_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+/**
+ * Application header containing global controls.
+ * Includes file upload, YouTube import, BPM/Key display and adjustment, and master volume.
+ */
 export const Header: React.FC = () => {
   const {
     playMode, setPlayMode,
@@ -201,26 +205,6 @@ export const Header: React.FC = () => {
   const sign = globalKeyShift > 0 ? '+' : '';
   const offsetText = detectedKeyIndex !== null ? `${sign}${globalKeyShift}` : '-';
 
-  // Use detected key if available and no shift, otherwise calculate
-  // Actually, we want to show the RESULTING key.
-  // If we have a detected key, we should probably parse it to find the index?
-  // For now, let's just show the detected key + offset if it exists, or just the offset if not.
-  // But the user wants "The default key is the detected key".
-  // So if detectedKey is "Cm", and shift is +2, it should be "Dm".
-  // That's complex to parse.
-  // Let's just show the detected key in a separate badge if it exists, and the shift controls the relative pitch.
-  // OR, simpler: Just show the Key control as a transposer.
-  // And show the "Detected: Cm" somewhere else?
-  // The user said: "Add a BPM thing in the header... essentia.js detects the key and the BPM... same for the key. So there is no default key. The default key is the detected key."
-  // This implies the Key Display should start at the detected key.
-  // But our Key Display is currently just an index into KEYS array (C, C#, etc).
-  // If Essentia returns "G major", we should probably set the base key to G.
-  // But our system is relative.
-  // Let's just display the Detected Key and BPM as "Original" values, and the controls as "Current" values.
-
-  // Actually, let's just add the BPM control for now as requested.
-  // "Add a BPM thing in the header in the middle or to the right of the key little module thing"
-
   return (
     <header className="bg-surface-dark border-b border-black/50 p-2 flex items-center justify-between text-sm shrink-0 z-10">
       <div className="flex items-center gap-3">
@@ -233,7 +217,6 @@ export const Header: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Key Display - Draggable */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 select-none">KEY</span>
           <div
@@ -248,7 +231,6 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* BPM Display - Draggable */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 select-none">BPM</span>
           <div
@@ -266,9 +248,8 @@ export const Header: React.FC = () => {
 
 
 
-        {/* Play Mode Toggle (Gate vs Trigger) */}
+
         <div className="flex items-center gap-1 bg-background-dark rounded-sm p-1 shadow-ui-element-inset">
-          {/* Gate Mode: Arrow with block end ->| (keyboard_tab) */}
           <button
             onClick={() => setPlayMode('gate')}
             className={`p-1 rounded-sm transition-all flex items-center justify-center ${playMode === 'gate' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
@@ -277,7 +258,6 @@ export const Header: React.FC = () => {
             <span className="material-symbols-outlined text-xl">keyboard_tab</span>
           </button>
 
-          {/* Trigger Mode: Arrow with arrow end -> (arrow_right_alt) */}
           <button
             onClick={() => setPlayMode('trigger')}
             className={`p-1 rounded-sm transition-all flex items-center justify-center ${playMode === 'trigger' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
@@ -287,7 +267,6 @@ export const Header: React.FC = () => {
           </button>
         </div>
 
-        {/* Master Volume */}
         <div className="flex items-center gap-2 w-48">
           <span className="material-symbols-outlined text-lg text-gray-400">volume_up</span>
           <input
@@ -301,107 +280,104 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
-          <div
-            className="bg-surface-dark rounded-xl shadow-pad-raised p-6 w-[400px] transform transition-all"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">add_circle</span>
-              Import Audio
-            </h2>
+      {
+        showUploadModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
+            <div
+              className="bg-surface-dark rounded-xl shadow-pad-raised p-6 w-[400px] transform transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">add_circle</span>
+                Import Audio
+              </h2>
 
-            {/* YouTube Section */}
-            <div className="mb-6">
-              <label className="block text-[10px] text-gray-400 mb-2 uppercase tracking-wider font-bold">From YouTube</label>
-              <div className="flex gap-2 mb-3">
-                <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                    <span className="material-symbols-outlined text-gray-500 text-lg">link</span>
+              <div className="mb-6">
+                <label className="block text-[10px] text-gray-400 mb-2 uppercase tracking-wider font-bold">From YouTube</label>
+                <div className="flex gap-2 mb-3">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                      <span className="material-symbols-outlined text-gray-500 text-lg">link</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={youtubeUrl}
+                      onChange={(e) => setYoutubeUrl(e.target.value)}
+                      placeholder="Paste YouTube URL..."
+                      className="w-full bg-background-dark rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-gray-600 shadow-ui-element-inset"
+                      onKeyDown={(e) => e.key === 'Enter' && handleYoutubeLoad()}
+                      disabled={isLoadingYoutube}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    placeholder="Paste YouTube URL..."
-                    className="w-full bg-background-dark rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-gray-600 shadow-ui-element-inset"
-                    onKeyDown={(e) => e.key === 'Enter' && handleYoutubeLoad()}
-                    disabled={isLoadingYoutube}
-                  />
+                  <button
+                    onClick={handleYoutubeLoad}
+                    disabled={isLoadingYoutube || !youtubeUrl}
+                    className="bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 rounded-lg transition-all shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
+                  >
+                    {isLoadingYoutube ? (
+                      <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-lg">download</span>
+                    )}
+                  </button>
                 </div>
+
+                {isLoadingYoutube && (
+                  <div className="bg-background-dark rounded-lg p-3 shadow-ui-element-inset">
+                    <div className="flex justify-between text-[10px] text-gray-300 mb-2 font-medium">
+                      <span className="truncate pr-2">{statusMessage}</span>
+                      <span className="text-primary">{downloadProgress > 0 ? `${Math.round(downloadProgress)}%` : ''}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden shadow-inner">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary to-orange-400 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+                        style={{ width: `${downloadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-4 mb-6">
+                <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent flex-1" />
+                <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">OR</span>
+                <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent flex-1" />
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-[10px] text-gray-400 mb-2 uppercase tracking-wider font-bold">From Device</label>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
                 <button
-                  onClick={handleYoutubeLoad}
-                  disabled={isLoadingYoutube || !youtubeUrl}
-                  className="bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 rounded-lg transition-all shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full group h-24 bg-surface-light hover:bg-surface-light/80 rounded-xl transition-all flex flex-col items-center justify-center gap-2 shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
                 >
-                  {isLoadingYoutube ? (
-                    <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-lg">download</span>
-                  )}
+                  <div className="p-2 bg-background-dark group-hover:bg-primary group-hover:text-black rounded-full transition-colors text-gray-400 shadow-ui-element-inset">
+                    <span className="material-symbols-outlined text-xl block">audio_file</span>
+                  </div>
+                  <span className="text-sm text-gray-400 group-hover:text-white font-medium transition-colors">Click to browse audio files</span>
                 </button>
               </div>
 
-              {/* Progress Bar */}
-              {isLoadingYoutube && (
-                <div className="bg-background-dark rounded-lg p-3 shadow-ui-element-inset">
-                  <div className="flex justify-between text-[10px] text-gray-300 mb-2 font-medium">
-                    <span className="truncate pr-2">{statusMessage}</span>
-                    <span className="text-primary">{downloadProgress > 0 ? `${Math.round(downloadProgress)}%` : ''}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden shadow-inner">
-                    <div
-                      className="h-full bg-gradient-to-r from-primary to-orange-400 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(251,191,36,0.5)]"
-                      style={{ width: `${downloadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent flex-1" />
-              <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">OR</span>
-              <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent flex-1" />
-            </div>
-
-            {/* Local File Section */}
-            <div className="mb-6">
-              <label className="block text-[10px] text-gray-400 mb-2 uppercase tracking-wider font-bold">From Device</label>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full group h-24 bg-surface-light hover:bg-surface-light/80 rounded-xl transition-all flex flex-col items-center justify-center gap-2 shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
-              >
-                <div className="p-2 bg-background-dark group-hover:bg-primary group-hover:text-black rounded-full transition-colors text-gray-400 shadow-ui-element-inset">
-                  <span className="material-symbols-outlined text-xl block">audio_file</span>
-                </div>
-                <span className="text-sm text-gray-400 group-hover:text-white font-medium transition-colors">Click to browse audio files</span>
-              </button>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-gray-400 hover:text-white text-sm font-medium px-4 py-2 hover:bg-white/5 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  className="text-gray-400 hover:text-white text-sm font-medium px-4 py-2 hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </header>
+        )
+      }
+    </header >
   );
 };

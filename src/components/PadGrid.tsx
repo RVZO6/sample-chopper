@@ -2,34 +2,33 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pad } from './Pad';
 import { useAudio, useAudioTime } from '@/context/AudioContext';
 
+/**
+ * Grid of 20 pads with keyboard and mouse interaction support.
+ * Handles gate/trigger modes and visual feedback for pressed states.
+ */
 export const PadGrid: React.FC = () => {
   const { pads, triggerPad, stopPad, setPadCuePoint, clearPad, playMode } = useAudio();
   const currentTime = useAudioTime();
 
-  // Track active keys to prevent repeat firing and handle gate mode
   const activeKeysRef = useRef<Set<string>>(new Set());
   const currentlyPlayingPadRef = useRef<string | null>(null);
-
-  // Track pressed pads for visual feedback
   const [pressedPads, setPressedPads] = useState<Set<string>>(new Set());
 
-  // Keyboard support
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat) return; // Ignore auto-repeat
+      if (e.repeat) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       const pad = pads.find(p => p.key === e.code);
       if (pad) {
         e.preventDefault();
         activeKeysRef.current.add(pad.id);
-
-        // Visual feedback - add to pressed set
         setPressedPads(prev => new Set(prev).add(pad.id));
 
         if (pad.cuePoint !== null) {
           triggerPad(pad.id);
-          currentlyPlayingPadRef.current = pad.id; // Track which pad is now active
+          currentlyPlayingPadRef.current = pad.id;
         }
       }
     };
@@ -41,20 +40,16 @@ export const PadGrid: React.FC = () => {
       if (pad) {
         e.preventDefault();
         activeKeysRef.current.delete(pad.id);
-
-        // Visual feedback - remove from pressed set
         setPressedPads(prev => {
           const next = new Set(prev);
           next.delete(pad.id);
           return next;
         });
 
-        // Only stop if this is the CURRENTLY PLAYING pad
         if (playMode === 'gate' && pad.cuePoint !== null && currentlyPlayingPadRef.current === pad.id) {
           stopPad(pad.id);
           currentlyPlayingPadRef.current = null;
         }
-        // If a different pad is playing, do nothing
       }
     };
 
@@ -72,6 +67,8 @@ export const PadGrid: React.FC = () => {
     const pad = pads.find(p => p.id === id);
     if (!pad) return;
 
+    setPressedPads(prev => new Set(prev).add(id));
+
     if (pad.cuePoint !== null) {
       triggerPad(id);
       currentlyPlayingPadRef.current = id; // Track which pad is now active
@@ -81,7 +78,12 @@ export const PadGrid: React.FC = () => {
   };
 
   const handlePadMouseUp = (id: string) => {
-    // Only stop if this is the CURRENTLY PLAYING pad
+    setPressedPads(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
     if (playMode === 'gate' && currentlyPlayingPadRef.current === id) {
       stopPad(id);
       currentlyPlayingPadRef.current = null;
@@ -89,6 +91,13 @@ export const PadGrid: React.FC = () => {
   };
 
   const handlePadMouseLeave = (id: string) => {
+    // Visual feedback - remove from pressed set
+    setPressedPads(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
     // Only stop if this is the CURRENTLY PLAYING pad
     if (playMode === 'gate' && currentlyPlayingPadRef.current === id) {
       stopPad(id);
