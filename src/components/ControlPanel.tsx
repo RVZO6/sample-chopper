@@ -4,10 +4,7 @@ import { useAudio } from '@/context/AudioContext';
 import { mapAttackToSeconds, mapReleaseToSeconds, formatTime } from '@/lib/audioUtils';
 
 export const ControlPanel: React.FC = () => {
-  const {
-    pads, selectedPadId, updateSelectedPadParams,
-    isPlaying, play, pause
-  } = useAudio();
+  const { pads, selectedPadId, updateSelectedPadParams } = useAudio();
 
   const selectedPad = selectedPadId ? pads.find(p => p.id === selectedPadId) : null;
 

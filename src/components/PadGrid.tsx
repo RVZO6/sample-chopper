@@ -3,7 +3,7 @@ import { Pad } from './Pad';
 import { useAudio, useAudioTime } from '@/context/AudioContext';
 
 export const PadGrid: React.FC = () => {
-  const { pads, triggerPad, stopPad, setPadCuePoint, clearPad, playMode, audioEngine } = useAudio();
+  const { pads, triggerPad, stopPad, setPadCuePoint, clearPad, playMode } = useAudio();
   const currentTime = useAudioTime();
 
   // Track active keys to prevent repeat firing and handle gate mode
