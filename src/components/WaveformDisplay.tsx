@@ -265,17 +265,27 @@ export const WaveformDisplay: React.FC = () => {
   // Peak Computation Helper
   // ============================================================================
 
+  /**
+   * Compute peaks using precise floating-point sample positions.
+   * This ensures that peak index `i` maps to the exact same time position
+   * across all LOD levels, preventing visual drift when switching detail levels.
+   */
   function computePeaksFromSamples(
     channelData: Float32Array,
     totalSamples: number,
     targetPeakCount: number
   ): number[] {
-    const samplesPerPeak = Math.floor(totalSamples / targetPeakCount);
     const peaks: number[] = new Array(targetPeakCount);
 
+    // Use floating-point ratio for precise time alignment across LOD levels
+    // This ensures peak[i] always represents the exact same time window
+    // regardless of the LOD level's peaksPerSecond value
+    const samplesPerPeak = totalSamples / targetPeakCount;
+
     for (let i = 0; i < targetPeakCount; i++) {
-      const start = i * samplesPerPeak;
-      const end = Math.min(start + samplesPerPeak, totalSamples);
+      // Use precise floating-point boundaries, then floor/ceil for iteration
+      const start = Math.floor(i * samplesPerPeak);
+      const end = Math.min(Math.floor((i + 1) * samplesPerPeak), totalSamples);
 
       let max = 0;
       for (let j = start; j < end; j++) {
