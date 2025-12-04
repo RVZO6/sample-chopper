@@ -26,20 +26,32 @@ const CONFIG = {
   LOD_LEVELS: [25, 50, 100, 200, 400],
 } as const;
 
-// Color map for cue point flags
+// Color map for cue point flags - matches rainbow gradient
 const FLAG_COLOR_MAP: Record<string, string> = {
-  'bg-red-700': '#b91c1c',
-  'bg-yellow-600': '#ca8a04',
-  'bg-fuchsia-700': '#a21caf',
-  'bg-orange-600': '#ea580c',
-  'bg-green-600': '#16a34a',
-  'bg-yellow-500': '#eab308',
-  'bg-red-800': '#991b1b',
-  'bg-green-700': '#15803d',
-  'bg-surface-dark': '#1e1e1e',
+  // Row 1 - Reds to Oranges
   'bg-red-600': '#dc2626',
+  'bg-red-500': '#ef4444',
+  'bg-orange-600': '#ea580c',
+  'bg-orange-500': '#f97316',
+  'bg-amber-500': '#f59e0b',
+  // Row 2 - Yellows to Greens
+  'bg-yellow-500': '#eab308',
+  'bg-lime-500': '#84cc16',
   'bg-green-500': '#22c55e',
-  'bg-red-900': '#7f1d1d',
+  'bg-emerald-500': '#10b981',
+  'bg-teal-500': '#14b8a6',
+  // Row 3 - Teals to Blues
+  'bg-cyan-500': '#06b6d4',
+  'bg-sky-500': '#0ea5e9',
+  'bg-blue-500': '#3b82f6',
+  'bg-indigo-500': '#6366f1',
+  'bg-violet-500': '#8b5cf6',
+  // Row 4 - Purples to Pinks
+  'bg-purple-500': '#a855f7',
+  'bg-fuchsia-500': '#d946ef',
+  'bg-pink-500': '#ec4899',
+  'bg-rose-500': '#f43f5e',
+  'bg-red-400': '#f87171',
 };
 
 // Time tick intervals in seconds
@@ -576,25 +588,6 @@ export const WaveformDisplay: React.FC = () => {
         className="block w-full h-full"
         style={{ willChange: 'contents' }}  // GPU compositing hint
       />
-
-      {/* Zoom Controls */}
-      <div className="absolute top-3 right-3 flex flex-col bg-surface-dark/80 backdrop-blur-xs rounded-sm border border-white/10 shadow-lg overflow-hidden">
-        <button
-          className="p-1.5 text-gray-300 hover:text-white hover:bg-white/10 rounded-t transition-colors active:bg-white/20"
-          onClick={() => setZoom(z => Math.min(CONFIG.MAX_ZOOM, z * 1.4))}
-          title="Zoom In"
-        >
-          <span className="material-symbols-outlined text-sm">add</span>
-        </button>
-        <div className="w-full h-px bg-white/10"></div>
-        <button
-          className="p-1.5 text-gray-300 hover:text-white hover:bg-white/10 rounded-b transition-colors active:bg-white/20"
-          onClick={() => setZoom(z => Math.max(minZoom, z * 0.7))}
-          title="Zoom Out"
-        >
-          <span className="material-symbols-outlined text-sm">remove</span>
-        </button>
-      </div>
 
 
 
