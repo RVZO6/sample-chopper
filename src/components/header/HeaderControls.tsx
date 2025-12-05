@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { MdKeyboardTab, MdArrowRightAlt } from 'react-icons/md';
+import { FiVolume2 } from 'react-icons/fi';
 import { BPM_MIN, BPM_MAX, DRAG_SENSITIVITY_PX, EDIT_MODE_DELAY_MS } from '@/config/constants';
 
 const KEYS_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -333,20 +335,20 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
                     className={`p-1 rounded-sm transition-all flex items-center justify-center ${playMode === 'gate' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
                     title="Gate Mode"
                 >
-                    <span className="material-symbols-outlined text-xl">keyboard_tab</span>
+                    <MdKeyboardTab className="text-xl" />
                 </button>
                 <button
                     onClick={() => setPlayMode('trigger')}
                     className={`p-1 rounded-sm transition-all flex items-center justify-center ${playMode === 'trigger' ? 'text-primary bg-surface-light shadow-ui-element-raised' : 'text-gray-500 hover:text-white hover:bg-surface-light active:shadow-ui-element-pressed'}`}
                     title="Trigger Mode"
                 >
-                    <span className="material-symbols-outlined text-xl">arrow_right_alt</span>
+                    <MdArrowRightAlt className="text-xl" />
                 </button>
             </div>
 
             {/* Volume */}
             <div className="flex items-center gap-2 w-48">
-                <span className="material-symbols-outlined text-lg text-gray-400">volume_up</span>
+                <FiVolume2 className="text-lg text-gray-400" />
                 <input
                     className="w-full h-1.5 bg-surface-light rounded-lg appearance-none cursor-pointer accent-primary shadow-ui-element-inset"
                     type="range"

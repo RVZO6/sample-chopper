@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { FiPlusCircle, FiLink, FiLoader, FiDownload, FiMusic } from 'react-icons/fi';
 import { YouTubeService } from '@/lib/YouTubeService';
 
 interface ImportModalProps {
@@ -104,7 +105,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onLoadFile, onClose })
                 onClick={(e) => e.stopPropagation()}
             >
                 <h2 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">add_circle</span>
+                    <FiPlusCircle className="text-primary" />
                     Import Audio
                 </h2>
 
@@ -113,7 +114,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onLoadFile, onClose })
                     <div className="flex gap-2 mb-3">
                         <div className="relative flex-1">
                             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                <span className="material-symbols-outlined text-gray-500 text-lg">link</span>
+                                <FiLink className="text-gray-500 text-lg" />
                             </div>
                             <input
                                 type="text"
@@ -131,9 +132,9 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onLoadFile, onClose })
                             className="bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 rounded-lg transition-all shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
                         >
                             {isLoadingYoutube ? (
-                                <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                                <FiLoader className="animate-spin text-lg" />
                             ) : (
-                                <span className="material-symbols-outlined text-lg">download</span>
+                                <FiDownload className="text-lg" />
                             )}
                         </button>
                     </div>
@@ -176,7 +177,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onLoadFile, onClose })
                         className="w-full group h-24 bg-surface-light hover:bg-surface-light/80 rounded-xl transition-all flex flex-col items-center justify-center gap-2 shadow-ui-element-raised active:shadow-ui-element-pressed active:translate-y-px"
                     >
                         <div className="p-2 bg-background-dark group-hover:bg-primary group-hover:text-black rounded-full transition-colors text-gray-400 shadow-ui-element-inset">
-                            <span className="material-symbols-outlined text-xl block">audio_file</span>
+                            <FiMusic className="text-xl block" />
                         </div>
                         <span className="text-sm text-gray-400 group-hover:text-white font-medium transition-colors">Click to browse audio files</span>
                     </button>

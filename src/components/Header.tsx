@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FiUpload } from 'react-icons/fi';
 import { useAudio } from '@/context/AudioContext';
 import { HeaderControls } from './header/HeaderControls';
 import { ImportModal } from './header/ImportModal';
@@ -28,7 +29,7 @@ export const Header: React.FC = () => {
           onClick={() => setShowUploadModal(true)}
           className="p-2 rounded-sm hover:bg-surface-light transition-colors shadow-ui-element-raised active:shadow-ui-element-pressed text-gray-400 hover:text-white"
         >
-          <span className="material-symbols-outlined text-lg">upload</span>
+          <FiUpload className="text-lg" />
         </button>
       </div>
 
