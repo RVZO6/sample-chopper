@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { RiSubtractLine, RiAddLine, RiPlayReverseFill } from 'react-icons/ri';
 import { Knob } from './Knob';
 import { useAudio } from '@/context/AudioContext';
 import { mapAttackToSeconds, mapReleaseToSeconds, formatTime } from '@/lib/audioUtils';
@@ -99,7 +100,7 @@ export const ControlPanel: React.FC = () => {
               onClick={() => updateSelectedPadParams({ keyShift: keyShift - 1 })}
               className="w-8 h-8 bg-surface-light rounded-sm hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed flex items-center justify-center text-gray-300 active:text-white transition-all"
             >
-              <span className="material-symbols-outlined text-sm">remove</span>
+              <RiSubtractLine className="text-sm" />
             </button>
             <div className="flex items-baseline gap-1 w-20 justify-center">
               <span className="font-mono text-lg font-bold select-none">{keyShift}</span>
@@ -109,7 +110,7 @@ export const ControlPanel: React.FC = () => {
               onClick={() => updateSelectedPadParams({ keyShift: keyShift + 1 })}
               className="w-8 h-8 bg-surface-light rounded-sm hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed flex items-center justify-center text-gray-300 active:text-white transition-all"
             >
-              <span className="material-symbols-outlined text-sm">add</span>
+              <RiAddLine className="text-sm" />
             </button>
           </div>
           <span className="text-xs font-semibold text-gray-400 select-none">Key Shift</span>
@@ -127,15 +128,7 @@ export const ControlPanel: React.FC = () => {
               : 'bg-surface-light text-gray-400 hover:text-white hover:bg-surface-light/80 shadow-ui-element-raised active:shadow-ui-element-pressed'
             }`}
         >
-          <span
-            className="material-symbols-outlined text-4xl"
-            style={{
-              fontVariationSettings: "'FILL' 1",
-              transform: 'scaleX(-1)'
-            }}
-          >
-            play_arrow
-          </span>
+          <RiPlayReverseFill className="text-3xl" />
         </button>
         <span className="text-xs font-semibold text-gray-400 select-none">Reverse</span>
       </div>
