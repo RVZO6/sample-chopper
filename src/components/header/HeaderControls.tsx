@@ -349,7 +349,7 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
             <div className="flex items-center gap-2 w-48">
                 <RiVolumeUpFill className="text-lg text-gray-400" />
                 <input
-                    className="w-full h-1.5 bg-surface-light rounded-lg appearance-none cursor-pointer accent-primary shadow-ui-element-inset"
+                    className="w-full h-1.5 bg-surface-light rounded-lg appearance-none cursor-pointer shadow-ui-element-inset [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
                     type="range"
                     min="0"
                     max="100"
