@@ -34,6 +34,10 @@ export default defineConfig(({ mode }) => {
             dest: 'essentia'
           },
           {
+            src: 'node_modules/essentia.js/dist/essentia.js-core.js',
+            dest: 'essentia'
+          },
+          {
             src: 'node_modules/rubberband-wasm/dist/rubberband.wasm',
             dest: 'rubberband'
           }
