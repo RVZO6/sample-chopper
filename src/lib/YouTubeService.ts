@@ -121,6 +121,9 @@ export class YouTubeService {
         }
 
         onStatus?.(result.cached ? 'Using warm backend cache...' : 'Audio stream ready');
-        return result;
+        return {
+            ...result,
+            url: `${YOUTUBE_AUDIO_ENDPOINT}?videoId=${encodeURIComponent(videoId)}&download=1`
+        };
     }
 }

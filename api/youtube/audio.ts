@@ -8,6 +8,7 @@ const CLIENT_ORDER: SupportedInnertubeClient[] = ['IOS', 'ANDROID', 'YTMUSIC_AND
 export interface ResolvedAudioResult {
     url: string;
     source: string;
+    client: SupportedInnertubeClient;
     apiType: 'youtubei';
     mimeType: string;
     extension: string;
@@ -22,6 +23,33 @@ interface CacheEntry {
 
 const audioCache = new Map<string, CacheEntry>();
 let youtubeClientPromise: Promise<Innertube> | null = null;
+
+function getClientOrder(preferred?: SupportedInnertubeClient): SupportedInnertubeClient[] {
+    if (!preferred) return CLIENT_ORDER;
+    return [preferred, ...CLIENT_ORDER.filter((client) => client !== preferred)];
+}
+
+async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalLength = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        chunks.push(value);
+        totalLength += value.byteLength;
+    }
+
+    const merged = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return merged;
+}
 
 function normalizeVideoId(input: string): string | null {
     if (!input) return null;
@@ -97,6 +125,7 @@ export async function resolveYouTubeAudio(videoId: string): Promise<ResolvedAudi
             const result = {
                 apiType: 'youtubei' as const,
                 bitrate: format.bitrate,
+                client,
                 extension: extensionFromMime(mimeType),
                 mimeType,
                 source: `youtubei.js (${client})`,
@@ -118,6 +147,32 @@ export async function resolveYouTubeAudio(videoId: string): Promise<ResolvedAudi
     throw new Error(`Failed to resolve an audio stream. ${errors.join(' | ')}`);
 }
 
+export async function downloadAudioBytes(videoId: string, preferredClient?: SupportedInnertubeClient): Promise<Uint8Array> {
+    const youtube = await getInnertubeClient();
+    const errors: string[] = [];
+
+    for (const client of getClientOrder(preferredClient)) {
+        try {
+            const stream = await youtube.download(videoId, {
+                client,
+                format: 'any',
+                quality: 'best',
+                type: 'audio'
+            });
+            const bytes = await streamToBytes(stream);
+            if (bytes.byteLength === 0) {
+                throw new Error('Received empty audio stream');
+            }
+            return bytes;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            errors.push(`${client}: ${message}`);
+        }
+    }
+
+    throw new Error(`Failed to download audio bytes. ${errors.join(' | ')}`);
+}
+
 function getVideoId(query: unknown): string | null {
     if (Array.isArray(query)) {
         return typeof query[0] === 'string' ? query[0] : null;
@@ -137,8 +192,23 @@ export default async function handler(req: any, res: any) {
         return;
     }
 
+    const download = req.query?.download === '1' || req.query?.download === 'true';
+
     try {
         const result = await resolveYouTubeAudio(videoId);
+
+        if (download) {
+            const bytes = await downloadAudioBytes(videoId, result.client);
+            const buffer = Buffer.from(bytes);
+
+            res.setHeader('Content-Type', result.mimeType);
+            res.setHeader('Content-Disposition', `inline; filename="youtube-${videoId}.${result.extension}"`);
+            res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+            res.setHeader('Content-Length', String(buffer.byteLength));
+            res.status(200).send(buffer);
+            return;
+        }
+
         res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
         res.status(200).json(result);
     } catch (error) {

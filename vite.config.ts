@@ -3,7 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import tailwindcss from '@tailwindcss/vite';
-import { resolveYouTubeAudio } from './api/youtube/audio';
+import { downloadAudioBytes, resolveYouTubeAudio } from './api/youtube/audio';
 
 /**
  * Vite configuration.
@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use('/api/youtube/audio', async (req, res) => {
             const url = new URL(req.url || '/', 'http://localhost');
             const videoId = url.searchParams.get('videoId');
+            const download = url.searchParams.get('download') === '1' || url.searchParams.get('download') === 'true';
 
             if (!videoId) {
               res.statusCode = 400;
@@ -39,6 +40,17 @@ export default defineConfig(({ mode }) => {
 
             try {
               const result = await resolveYouTubeAudio(videoId);
+              if (download) {
+                const bytes = Buffer.from(await downloadAudioBytes(videoId, result.client));
+
+                res.statusCode = 200;
+                res.setHeader('content-type', result.mimeType);
+                res.setHeader('content-disposition', `inline; filename="youtube-${videoId}.${result.extension}"`);
+                res.setHeader('content-length', String(bytes.byteLength));
+                res.end(bytes);
+                return;
+              }
+
               res.statusCode = 200;
               res.setHeader('content-type', 'application/json');
               res.end(JSON.stringify(result));
