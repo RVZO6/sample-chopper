@@ -3,7 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import tailwindcss from '@tailwindcss/vite';
-import { resolveYouTubeAudio } from './api/_lib/youtubeAudio';
+import { resolveYouTubeAudio } from './api/youtube/audio';
 
 /**
  * Vite configuration.
