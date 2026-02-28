@@ -22,17 +22,17 @@ A web-based audio sample chopper with real-time pitch and time manipulation.
 
 Install dependencies:
 ```bash
-pnpm install
+bun install
 ```
 
 Run development server:
 ```bash
-pnpm dev
+bun run dev
 ```
 
 Build for production:
 ```bash
-pnpm build
+bun run build
 ```
 
 ## Usage
@@ -42,3 +42,18 @@ pnpm build
 3. Trigger pads with keyboard (Q-P, A-;, Z-/) or click them
 4. Adjust pitch, time, and envelope for each pad
 5. Use global key control to transpose everything
+
+## YouTube Import Pipeline
+
+- Uses a local server endpoint (`/api/youtube/audio`) backed by `youtubei.js`
+- Resolves direct audio stream URLs from YouTube (no Piped/Invidious/public proxy dependency)
+- Caches resolved stream metadata server-side for fast repeat lookups
+- Caches downloaded audio blobs in-browser for instant re-imports
+
+Optional environment variable:
+
+```bash
+YOUTUBE_COOKIE=...
+```
+
+`YOUTUBE_COOKIE` can help with videos that need additional session context.

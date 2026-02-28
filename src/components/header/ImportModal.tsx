@@ -25,23 +25,23 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onLoadFile, onClose })
 
         setIsLoadingYoutube(true);
         setDownloadProgress(0);
-        setStatusMessage('Resolving URL...');
+        setStatusMessage('Checking local cache...');
 
         try {
+            const cachedFile = await YouTubeService.getCachedAudioFile(videoId);
+            if (cachedFile) {
+                setStatusMessage('Loaded from cache');
+                setDownloadProgress(100);
+                await onLoadFile(cachedFile);
+                onClose();
+                return;
+            }
+
             const result = await YouTubeService.getBestAudioUrl(videoId, (msg) => setStatusMessage(msg));
 
-            setStatusMessage(`${result.source} - Starting download...`);
+            setStatusMessage(`${result.source} - Starting stream...`);
 
-            // Try to fetch with a CORS proxy if direct fetch fails
-            // We'll try direct first, then a public proxy
-            let response;
-            try {
-                response = await fetch(result.url);
-            } catch (e) {
-                console.warn("Direct fetch failed, trying proxy...", e);
-                // Fallback to a CORS proxy (using corsproxy.io for demo purposes)
-                response = await fetch(`https://corsproxy.io/?${encodeURIComponent(result.url)}`);
-            }
+            const response = await fetch(result.url);
 
             if (!response.ok) throw new Error(`Failed to fetch audio: ${response.statusText}`);
 
@@ -64,15 +64,16 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onLoadFile, onClose })
                 if (total) {
                     setDownloadProgress((loaded / total) * 100);
                     // Don't show percentage in text, it's already in the progress bar
-                    setStatusMessage(`${result.source} - Downloading...`);
+                    setStatusMessage(`${result.source} - Streaming audio...`);
                 } else {
-                    setStatusMessage(`${result.source} - Downloading ${(loaded / 1024 / 1024).toFixed(2)} MB`);
+                    setStatusMessage(`${result.source} - Streamed ${(loaded / 1024 / 1024).toFixed(2)} MB`);
                 }
             }
 
             setStatusMessage(`${result.source} - Processing audio...`);
             const blob = new Blob(chunks, { type: result.mimeType });
             const file = new File([blob], `youtube-${videoId}.${result.extension}`, { type: result.mimeType });
+            void YouTubeService.cacheAudioBlob(videoId, blob, result.mimeType, result.extension);
 
             await onLoadFile(file);
             onClose();

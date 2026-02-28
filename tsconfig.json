@@ -27,6 +27,8 @@
     "noEmit": true
   },
   "include": [
-    "src"
+    "src",
+    "api",
+    "server"
   ]
 }

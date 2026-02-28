@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/youtube/audio.ts": {
+      "maxDuration": 30
+    }
+  }
+}

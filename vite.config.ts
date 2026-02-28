@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import tailwindcss from '@tailwindcss/vite';
+import { resolveYouTubeAudio } from './server/youtubeAudio';
 
 /**
  * Vite configuration.
@@ -21,6 +22,34 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
     },
     plugins: [
+      {
+        name: 'youtube-audio-api-dev',
+        apply: 'serve',
+        configureServer(server) {
+          server.middlewares.use('/api/youtube/audio', async (req, res) => {
+            const url = new URL(req.url || '/', 'http://localhost');
+            const videoId = url.searchParams.get('videoId');
+
+            if (!videoId) {
+              res.statusCode = 400;
+              res.setHeader('content-type', 'application/json');
+              res.end(JSON.stringify({ error: 'Missing videoId query param' }));
+              return;
+            }
+
+            try {
+              const result = await resolveYouTubeAudio(videoId);
+              res.statusCode = 200;
+              res.setHeader('content-type', 'application/json');
+              res.end(JSON.stringify(result));
+            } catch (error) {
+              res.statusCode = 502;
+              res.setHeader('content-type', 'application/json');
+              res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+            }
+          });
+        }
+      },
       react(),
       tailwindcss(),
       viteStaticCopy({
