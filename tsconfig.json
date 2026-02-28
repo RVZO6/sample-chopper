@@ -28,7 +28,6 @@
   },
   "include": [
     "src",
-    "api",
-    "server"
+    "api"
   ]
 }

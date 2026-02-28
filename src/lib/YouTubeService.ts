@@ -55,6 +55,15 @@ export class YouTubeService {
         return 'm4a';
     }
 
+    private static async parseJsonResponse<T>(response: Response, fallbackError: string): Promise<T> {
+        const text = await response.text();
+        try {
+            return JSON.parse(text) as T;
+        } catch {
+            throw new Error(`${fallbackError}. Non-JSON response: ${text.slice(0, 220)}`);
+        }
+    }
+
     static async getCachedAudioFile(videoId: string): Promise<File | null> {
         if (typeof window === 'undefined' || !('caches' in window)) {
             return null;
@@ -96,11 +105,17 @@ export class YouTubeService {
         const response = await fetch(`${YOUTUBE_AUDIO_ENDPOINT}?videoId=${encodeURIComponent(videoId)}`);
 
         if (!response.ok) {
-            const errorData = await response.json() as AudioApiErrorResponse;
+            const errorData = await this.parseJsonResponse<AudioApiErrorResponse>(
+                response,
+                `[YouTubeService] API request failed (${response.status})`
+            );
             throw new Error(errorData.error || `HTTP ${response.status} ${response.statusText}`);
         }
 
-        const result = await response.json() as AudioFetchResult;
+        const result = await this.parseJsonResponse<AudioFetchResult>(
+            response,
+            '[YouTubeService] Invalid API response payload'
+        );
         if (!result?.url || !result?.mimeType || !result?.extension) {
             throw new Error('[YouTubeService] Invalid audio response from backend');
         }

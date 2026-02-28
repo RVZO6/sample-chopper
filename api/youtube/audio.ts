@@ -1,4 +1,4 @@
-import { resolveYouTubeAudio } from '../../server/youtubeAudio';
+import { resolveYouTubeAudio } from '../_lib/youtubeAudio';
 
 function getVideoId(query: unknown): string | null {
     if (Array.isArray(query)) {
