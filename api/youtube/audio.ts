@@ -51,6 +51,24 @@ async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8A
     return merged;
 }
 
+function summarizeError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function isLikelyYouTubeAttestationBlock(message: string): boolean {
+    const normalized = message.toLowerCase();
+    return normalized.includes('streaming data not available')
+        || normalized.includes('non 2xx status code')
+        || normalized.includes('status code 400');
+}
+
+function withTroubleshooting(message: string): string {
+    if (!isLikelyYouTubeAttestationBlock(message)) {
+        return message;
+    }
+    return `${message} | This video likely requires YouTube attestation from the server IP. Configure YOUTUBE_COOKIE (and optionally YOUTUBE_PO_TOKEN) in Vercel environment variables.`;
+}
+
 function normalizeVideoId(input: string): string | null {
     if (!input) return null;
     const trimmed = input.trim();
@@ -78,18 +96,65 @@ function computeCacheTtlMs(url: string): number {
     }
 }
 
-async function getInnertubeClient(): Promise<Innertube> {
+async function createInnertubeClient(): Promise<Innertube> {
+    return Innertube.create({
+        cache: new UniversalCache(false),
+        cookie: process.env.YOUTUBE_COOKIE,
+        po_token: process.env.YOUTUBE_PO_TOKEN,
+        generate_session_locally: process.env.YOUTUBE_GENERATE_SESSION_LOCALLY === 'true',
+        retrieve_innertube_config: true,
+        enable_session_cache: false,
+        fail_fast: false
+    });
+}
+
+async function getInnertubeClient(forceFresh = false): Promise<Innertube> {
+    if (forceFresh) {
+        youtubeClientPromise = null;
+    }
     if (!youtubeClientPromise) {
-        youtubeClientPromise = Innertube.create({
-            cache: new UniversalCache(false),
-            cookie: process.env.YOUTUBE_COOKIE,
-            generate_session_locally: true
-        }).catch((error) => {
+        youtubeClientPromise = createInnertubeClient().catch((error) => {
             youtubeClientPromise = null;
             throw error;
         });
     }
     return youtubeClientPromise;
+}
+
+async function resolveFromClient(youtube: Innertube, videoId: string): Promise<{ result: Omit<ResolvedAudioResult, 'cached'> | null; errors: string[] }> {
+    const errors: string[] = [];
+    for (const client of CLIENT_ORDER) {
+        try {
+            const format = await youtube.getStreamingData(videoId, {
+                client,
+                format: 'any',
+                quality: 'best',
+                type: 'audio'
+            });
+
+            if (!format.url || !format.mime_type.startsWith('audio/')) {
+                throw new Error('Missing resolved audio URL');
+            }
+
+            const mimeType = format.mime_type.split(';')[0].trim();
+            return {
+                result: {
+                    apiType: 'youtubei',
+                    bitrate: format.bitrate,
+                    client,
+                    extension: extensionFromMime(mimeType),
+                    mimeType,
+                    source: `youtubei.js (${client})`,
+                    url: format.url
+                },
+                errors
+            };
+        } catch (error) {
+            errors.push(`${client}: ${summarizeError(error)}`);
+        }
+    }
+
+    return { result: null, errors };
 }
 
 export async function resolveYouTubeAudio(videoId: string): Promise<ResolvedAudioResult> {
@@ -105,32 +170,15 @@ export async function resolveYouTubeAudio(videoId: string): Promise<ResolvedAudi
 
     audioCache.delete(normalizedVideoId);
 
-    const youtube = await getInnertubeClient();
-    const errors: string[] = [];
-
-    for (const client of CLIENT_ORDER) {
+    const stageErrors: string[] = [];
+    for (const stage of [false, true]) {
         try {
-            const format = await youtube.getStreamingData(normalizedVideoId, {
-                client,
-                format: 'any',
-                quality: 'best',
-                type: 'audio'
-            });
-
-            if (!format.url || !format.mime_type.startsWith('audio/')) {
-                throw new Error('Missing resolved audio URL');
+            const youtube = await getInnertubeClient(stage);
+            const { result, errors } = await resolveFromClient(youtube, normalizedVideoId);
+            if (!result) {
+                stageErrors.push(`${stage ? 'fresh' : 'cached'} session: ${errors.join(' | ')}`);
+                continue;
             }
-
-            const mimeType = format.mime_type.split(';')[0].trim();
-            const result = {
-                apiType: 'youtubei' as const,
-                bitrate: format.bitrate,
-                client,
-                extension: extensionFromMime(mimeType),
-                mimeType,
-                source: `youtubei.js (${client})`,
-                url: format.url
-            };
 
             audioCache.set(normalizedVideoId, {
                 expiresAt: Date.now() + computeCacheTtlMs(result.url),
@@ -139,38 +187,46 @@ export async function resolveYouTubeAudio(videoId: string): Promise<ResolvedAudi
 
             return { ...result, cached: false };
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            errors.push(`${client}: ${message}`);
+            stageErrors.push(`${stage ? 'fresh' : 'cached'} session setup: ${summarizeError(error)}`);
         }
     }
 
-    throw new Error(`Failed to resolve an audio stream. ${errors.join(' | ')}`);
+    throw new Error(withTroubleshooting(`Failed to resolve an audio stream. ${stageErrors.join(' || ')}`));
 }
 
 export async function downloadAudioBytes(videoId: string, preferredClient?: SupportedInnertubeClient): Promise<Uint8Array> {
-    const youtube = await getInnertubeClient();
-    const errors: string[] = [];
+    const stageErrors: string[] = [];
 
-    for (const client of getClientOrder(preferredClient)) {
+    for (const stage of [false, true]) {
         try {
-            const stream = await youtube.download(videoId, {
-                client,
-                format: 'any',
-                quality: 'best',
-                type: 'audio'
-            });
-            const bytes = await streamToBytes(stream);
-            if (bytes.byteLength === 0) {
-                throw new Error('Received empty audio stream');
+            const youtube = await getInnertubeClient(stage);
+            const errors: string[] = [];
+
+            for (const client of getClientOrder(preferredClient)) {
+                try {
+                    const stream = await youtube.download(videoId, {
+                        client,
+                        format: 'any',
+                        quality: 'best',
+                        type: 'audio'
+                    });
+                    const bytes = await streamToBytes(stream);
+                    if (bytes.byteLength === 0) {
+                        throw new Error('Received empty audio stream');
+                    }
+                    return bytes;
+                } catch (error) {
+                    errors.push(`${client}: ${summarizeError(error)}`);
+                }
             }
-            return bytes;
+
+            stageErrors.push(`${stage ? 'fresh' : 'cached'} session: ${errors.join(' | ')}`);
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            errors.push(`${client}: ${message}`);
+            stageErrors.push(`${stage ? 'fresh' : 'cached'} session setup: ${summarizeError(error)}`);
         }
     }
 
-    throw new Error(`Failed to download audio bytes. ${errors.join(' | ')}`);
+    throw new Error(withTroubleshooting(`Failed to download audio bytes. ${stageErrors.join(' || ')}`));
 }
 
 function getVideoId(query: unknown): string | null {

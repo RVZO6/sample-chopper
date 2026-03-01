@@ -54,6 +54,9 @@ Optional environment variable:
 
 ```bash
 YOUTUBE_COOKIE=...
+YOUTUBE_PO_TOKEN=...
+YOUTUBE_GENERATE_SESSION_LOCALLY=false
 ```
 
-`YOUTUBE_COOKIE` can help with videos that need additional session context.
+`YOUTUBE_COOKIE` and `YOUTUBE_PO_TOKEN` help with videos that require YouTube attestation.
+`YOUTUBE_GENERATE_SESSION_LOCALLY` defaults to `false`; keep it false for server deployments unless you have a specific reason to change it.
