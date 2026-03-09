@@ -43,20 +43,4 @@ bun run build
 4. Adjust pitch, time, and envelope for each pad
 5. Use global key control to transpose everything
 
-## YouTube Import Pipeline
-
-- Uses a local server endpoint (`/api/youtube/audio`) backed by `youtubei.js`
-- Resolves direct audio stream URLs from YouTube (no Piped/Invidious/public proxy dependency)
-- Caches resolved stream metadata server-side for fast repeat lookups
-- Caches downloaded audio blobs in-browser for instant re-imports
-
-Optional environment variable:
-
-```bash
-YOUTUBE_COOKIE=...
-YOUTUBE_PO_TOKEN=...
-YOUTUBE_GENERATE_SESSION_LOCALLY=false
-```
-
-`YOUTUBE_COOKIE` and `YOUTUBE_PO_TOKEN` help with videos that require YouTube attestation.
-`YOUTUBE_GENERATE_SESSION_LOCALLY` defaults to `false`; keep it false for server deployments unless you have a specific reason to change it.
+The file picker accepts common audio extensions such as MP3, WAV, FLAC, AIFF, M4A, OGG, OPUS, WEBM, AAC, and more. Actual decoding depends on browser codec support.

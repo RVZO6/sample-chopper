@@ -1,8 +1,47 @@
+import { transcodeAudioFileToWav } from './AudioTranscoder';
+
+const AUDIO_FILE_EXTENSIONS = [
+    '.aac',
+    '.aif',
+    '.aiff',
+    '.alac',
+    '.amr',
+    '.au',
+    '.caf',
+    '.flac',
+    '.m4a',
+    '.mid',
+    '.midi',
+    '.mp3',
+    '.mp4',
+    '.oga',
+    '.ogg',
+    '.opus',
+    '.wav',
+    '.wave',
+    '.weba',
+    '.webm',
+    '.wma'
+] as const;
+
+const AUDIO_FILE_EXTENSION_SET = new Set(AUDIO_FILE_EXTENSIONS);
+
+export const AUDIO_FILE_PICKER_ACCEPT = ['audio/*', ...AUDIO_FILE_EXTENSIONS].join(',');
+
 /**
  * Utility class for loading and decoding audio files.
  * Supports loading from URL (fetch) and local File objects.
  */
 export class AudioLoader {
+    static isLikelyAudioFile(file: File): boolean {
+        if (file.type.startsWith('audio/')) {
+            return true;
+        }
+
+        const extensionMatch = /\.[^.]+$/.exec(file.name.toLowerCase());
+        return extensionMatch ? AUDIO_FILE_EXTENSION_SET.has(extensionMatch[0] as typeof AUDIO_FILE_EXTENSIONS[number]) : false;
+    }
+
     /**
      * Loads audio from a URL.
      * @param url URL to fetch audio from
@@ -23,30 +62,24 @@ export class AudioLoader {
      * @param context AudioContext to use for decoding
      */
     static async loadFromFile(file: File, context: AudioContext): Promise<AudioBuffer> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
+        if (!this.isLikelyAudioFile(file)) {
+            throw new Error('[AudioLoader] Please choose an audio file.');
+        }
 
-            reader.onload = async (e) => {
-                if (!e.target?.result) {
-                    reject(new Error('[AudioLoader] Failed to read file: No result'));
-                    return;
-                }
+        const arrayBuffer = await file.arrayBuffer();
 
-                try {
-                    const arrayBuffer = e.target.result as ArrayBuffer;
-                    const buffer = await context.decodeAudioData(arrayBuffer);
-                    resolve(buffer);
-                } catch (err) {
-                    console.error('[AudioLoader] Error decoding audio data:', err);
-                    reject(new Error('[AudioLoader] Failed to decode audio data. Format may not be supported.'));
-                }
-            };
+        try {
+            return await context.decodeAudioData(arrayBuffer);
+        } catch (err) {
+            console.warn('[AudioLoader] Native decode failed, transcoding with FFmpeg:', err);
 
-            reader.onerror = () => {
-                reject(new Error('[AudioLoader] Failed to read file'));
-            };
-
-            reader.readAsArrayBuffer(file);
-        });
+            try {
+                const transcodedBuffer = await transcodeAudioFileToWav(file);
+                return await context.decodeAudioData(transcodedBuffer);
+            } catch (transcodeError) {
+                console.error('[AudioLoader] Error decoding audio data:', transcodeError);
+                throw new Error('[AudioLoader] Failed to decode audio data, even after transcoding.');
+            }
+        }
     }
 }

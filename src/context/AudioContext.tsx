@@ -408,6 +408,8 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
 
     const loadFile = async (file: File) => {
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+
         try {
             setIsAnalyzing(true);
             setDetectedBpm(null);
@@ -417,10 +419,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setGlobalKeyShift(0);
             setError(null);
 
-            // Use temporary context for decoding to ensure clean buffer state
-            const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
             const buffer = await AudioLoader.loadFromFile(file, tempCtx);
-            tempCtx.close(); // Clean up temp context
 
             await audioEngine.setAudioBuffer(buffer);
 
@@ -437,6 +436,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setIsAnalyzing(false);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load audio file';
             setError(errorMessage);
+        } finally {
+            void tempCtx.close().catch((closeError) => {
+                console.error('[AudioContext] Failed to close temporary audio context:', closeError);
+            });
         }
     };
 
