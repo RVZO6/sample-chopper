@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { RiUpload2Fill } from 'react-icons/ri';
+import { RiLoader4Line, RiUpload2Fill } from 'react-icons/ri';
 import { useAudio } from '@/context/AudioContext';
 import { HeaderControls } from './header/HeaderControls';
 import { AUDIO_FILE_PICKER_ACCEPT } from '@/lib/AudioLoader';
@@ -17,6 +17,7 @@ export const Header: React.FC = () => {
     detectedBpm,
     currentBpm, setBpm,
     isAnalyzing,
+    fileLoadStatus,
     keyMode, detectedKeyIndex
   } = useAudio();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +52,12 @@ export const Header: React.FC = () => {
         >
           <RiUpload2Fill className="text-lg" />
         </button>
+        {fileLoadStatus && (
+          <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-gray-400 whitespace-nowrap">
+            <RiLoader4Line className="text-sm animate-spin" />
+            {fileLoadStatus}
+          </div>
+        )}
       </div>
 
       <HeaderControls

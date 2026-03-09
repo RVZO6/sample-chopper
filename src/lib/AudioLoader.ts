@@ -1,5 +1,7 @@
 import { transcodeAudioFileToWav } from './AudioTranscoder';
 
+type LoadStatusCallback = (status: string) => void;
+
 const AUDIO_FILE_EXTENSIONS = [
     '.aac',
     '.aif',
@@ -61,20 +63,23 @@ export class AudioLoader {
      * @param file File object to load
      * @param context AudioContext to use for decoding
      */
-    static async loadFromFile(file: File, context: AudioContext): Promise<AudioBuffer> {
+    static async loadFromFile(file: File, context: AudioContext, onStatus?: LoadStatusCallback): Promise<AudioBuffer> {
         if (!this.isLikelyAudioFile(file)) {
             throw new Error('[AudioLoader] Please choose an audio file.');
         }
 
+        onStatus?.('Reading audio');
         const arrayBuffer = await file.arrayBuffer();
 
         try {
+            onStatus?.('Decoding audio');
             return await context.decodeAudioData(arrayBuffer);
         } catch (err) {
             console.warn('[AudioLoader] Native decode failed, transcoding with FFmpeg:', err);
 
             try {
-                const transcodedBuffer = await transcodeAudioFileToWav(file);
+                const transcodedBuffer = await transcodeAudioFileToWav(file, onStatus);
+                onStatus?.('Decoding transcoded audio');
                 return await context.decodeAudioData(transcodedBuffer);
             } catch (transcodeError) {
                 console.error('[AudioLoader] Error decoding audio data:', transcodeError);

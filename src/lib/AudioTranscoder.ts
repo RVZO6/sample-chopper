@@ -1,15 +1,18 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 
+type TranscodeStatusCallback = (status: string) => void;
+
 const ffmpeg = new FFmpeg();
 let ffmpegLoadPromise: Promise<void> | null = null;
 
-async function ensureFFmpegLoaded(): Promise<void> {
+async function ensureFFmpegLoaded(onStatus?: TranscodeStatusCallback): Promise<void> {
     if (ffmpeg.loaded) {
         return;
     }
 
     if (!ffmpegLoadPromise) {
+        onStatus?.('Starting transcoder');
         ffmpegLoadPromise = ffmpeg.load({
             classWorkerURL: '/ffmpeg/worker.js',
             coreURL: '/ffmpeg/ffmpeg-core.js',
@@ -27,13 +30,14 @@ function sanitizeFileStem(fileName: string): string {
     return fileName.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '') || 'audio';
 }
 
-export async function transcodeAudioFileToWav(file: File): Promise<ArrayBuffer> {
-    await ensureFFmpegLoaded();
+export async function transcodeAudioFileToWav(file: File, onStatus?: TranscodeStatusCallback): Promise<ArrayBuffer> {
+    await ensureFFmpegLoaded(onStatus);
 
     const inputName = `input-${crypto.randomUUID()}-${sanitizeFileStem(file.name)}`;
     const outputName = `output-${crypto.randomUUID()}.wav`;
 
     try {
+        onStatus?.('Transcoding audio');
         await ffmpeg.writeFile(inputName, await fetchFile(file));
         const exitCode = await ffmpeg.exec([
             '-i', inputName,
@@ -48,6 +52,7 @@ export async function transcodeAudioFileToWav(file: File): Promise<ArrayBuffer> 
             throw new Error(`FFmpeg exited with code ${exitCode}`);
         }
 
+        onStatus?.('Finalizing audio');
         const output = await ffmpeg.readFile(outputName);
         if (!(output instanceof Uint8Array)) {
             throw new Error('FFmpeg returned unexpected output data.');

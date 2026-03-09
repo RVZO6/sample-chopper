@@ -90,6 +90,7 @@ interface AudioState {
     detectedKey: string | null;
     currentBpm: number | null;
     isAnalyzing: boolean;
+    fileLoadStatus: string | null;
     keyMode: 'sharp' | 'flat';
     detectedKeyIndex: number | null;
 
@@ -213,6 +214,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const [detectedKey, setDetectedKey] = useState<string | null>(null);
     const [currentBpm, setCurrentBpm] = useState<number | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [fileLoadStatus, setFileLoadStatus] = useState<string | null>(null);
     const [keyMode, setKeyMode] = useState<'sharp' | 'flat'>('sharp');
     const [detectedKeyIndex, setDetectedKeyIndex] = useState<number | null>(null);
 
@@ -326,6 +328,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const performAnalysisWithReuse = async (audioBuffer: AudioBuffer) => {
         try {
+            setFileLoadStatus('Analyzing audio');
             const pcmData = audioBuffer.getChannelData(0);
             const sampleRate = audioBuffer.sampleRate;
 
@@ -375,12 +378,14 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
                         setDetectedKey(`${key} ${scale}`);
                         setIsAnalyzing(false);
+                        setFileLoadStatus(null);
                         worker?.removeEventListener('message', handleMessage);
                         resolve();
                     } else if (type === 'ERROR') {
                         console.error('[Analysis] Worker error:', payload);
                         setError(`Analysis failed: ${payload}`);
                         setIsAnalyzing(false);
+                        setFileLoadStatus(null);
                         worker?.removeEventListener('message', handleMessage);
                         resolve();
                     }
@@ -404,6 +409,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             console.error('[Analysis] Fatal error:', error);
             setError('Analysis failed.');
             setIsAnalyzing(false);
+            setFileLoadStatus(null);
         }
     };
 
@@ -412,6 +418,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         try {
             setIsAnalyzing(true);
+            setFileLoadStatus('Preparing import');
             setDetectedBpm(null);
             setDetectedKey(null);
             setCurrentBpm(null);
@@ -419,8 +426,9 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setGlobalKeyShift(0);
             setError(null);
 
-            const buffer = await AudioLoader.loadFromFile(file, tempCtx);
+            const buffer = await AudioLoader.loadFromFile(file, tempCtx, setFileLoadStatus);
 
+            setFileLoadStatus('Loading into sampler');
             await audioEngine.setAudioBuffer(buffer);
 
             const dur = audioEngine.getDuration();
@@ -434,6 +442,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         } catch (error: unknown) {
             console.error('[AudioContext] Failed to load audio file:', error);
             setIsAnalyzing(false);
+            setFileLoadStatus(null);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load audio file';
             setError(errorMessage);
         } finally {
@@ -462,6 +471,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         currentBpm,
         setBpm,
         isAnalyzing,
+        fileLoadStatus,
         keyMode,
         detectedKeyIndex,
         error,
@@ -479,7 +489,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }), [
         duration, isPlaying, audioEngine, pads, selectedPadId,
         playMode, masterVolume, globalKeyShift, detectedBpm,
-        detectedKey, currentBpm, isAnalyzing, keyMode, detectedKeyIndex, error
+        detectedKey, currentBpm, isAnalyzing, fileLoadStatus, keyMode, detectedKeyIndex, error
     ]);
 
     return (
